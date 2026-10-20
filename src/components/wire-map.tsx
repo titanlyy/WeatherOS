@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from "react";
-import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url";
-import type { AreaNow, Region, Station, ThemeId } from "@/lib/weather-model";
-import { forecastTone, psiKey } from "@/lib/weather-model";
+import { useMemo, useState } from "react";
+import type { AreaNow, Region, Station } from "@/lib/weather-model";
+import { forecastTone, knotsToKmh, psiKey, round1 } from "@/lib/weather-model";
+import { SG_FRAME, SG_RING } from "@/lib/sg-coast";
 
 type Layers = { wind: boolean; rain: boolean; haze: boolean; nowcast: boolean };
 
@@ -9,360 +9,140 @@ type Props = {
   stations: Station[];
   regions: Region[];
   areas: AreaNow[];
-  theme: ThemeId;
+  theme: string;
   layers: Layers;
   focus: { lon: number; lat: number; nonce: number } | null;
   onSelect: (station: Station) => void;
 };
 
-type MlMap = import("maplibre-gl").Map;
-type MlNs = typeof import("maplibre-gl");
-
-function token(name: string, fallback: string) {
-  if (typeof document === "undefined") return fallback;
-  const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-  return value || fallback;
-}
-
-function styleForTheme(): import("maplibre-gl").StyleSpecification {
-  const bg = token("--color-bg", "#07090d");
-  const water = token("--color-surface", "#10161c");
-  const line = token("--color-line", "#24323a");
-  const primary = token("--color-primary", "#2ee6a6");
-  const muted = token("--color-muted", "#8ea0a8");
-  return {
-    version: 8,
-    glyphs: "https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf",
-    sources: {
-      ofm: { type: "vector", url: "https://tiles.openfreemap.org/planet" },
-    },
-    layers: [
-      { id: "bg", type: "background", paint: { "background-color": bg } },
-      {
-        id: "water",
-        type: "fill",
-        source: "ofm",
-        "source-layer": "water",
-        paint: { "fill-color": water },
-      },
-      {
-        id: "waterway",
-        type: "line",
-        source: "ofm",
-        "source-layer": "waterway",
-        paint: { "line-color": line, "line-width": 0.8 },
-      },
-      {
-        id: "roads",
-        type: "line",
-        source: "ofm",
-        "source-layer": "transportation",
-        filter: ["!", ["in", ["get", "class"], ["literal", ["path", "service", "track"]]]],
-        paint: { "line-color": primary, "line-opacity": 0.28, "line-width": ["interpolate", ["linear"], ["zoom"], 9, 0.6, 13, 1.6] },
-      },
-      {
-        id: "roads-major",
-        type: "line",
-        source: "ofm",
-        "source-layer": "transportation",
-        filter: ["in", ["get", "class"], ["literal", ["motorway", "trunk", "primary"]]],
-        paint: { "line-color": primary, "line-opacity": 0.85, "line-width": ["interpolate", ["linear"], ["zoom"], 9, 1.1, 13, 2.4] },
-      },
-      {
-        id: "boundary",
-        type: "line",
-        source: "ofm",
-        "source-layer": "boundary",
-        filter: ["<=", ["get", "admin_level"], 4],
-        paint: { "line-color": primary, "line-width": 1.4, "line-opacity": 0.7 },
-      },
-      {
-        id: "places",
-        type: "symbol",
-        source: "ofm",
-        "source-layer": "place",
-        filter: ["in", ["get", "class"], ["literal", ["city", "town"]]],
-        layout: {
-          "text-field": ["get", "name:en"],
-          "text-font": ["Noto Sans Regular"],
-          "text-size": 11,
-        },
-        paint: { "text-color": muted, "text-halo-color": bg, "text-halo-width": 1.2 },
-      },
-    ],
-  };
-}
+const VB_W = 1000;
+const VB_H = 620;
 
 const PSI_COLOR: Record<string, string> = {
-  good: "--color-good",
-  moderate: "--color-moderate",
-  unhealthy: "--color-unhealthy",
-  very: "--color-very",
-  hazard: "--color-hazard",
+  good: "var(--color-good)",
+  moderate: "var(--color-moderate)",
+  unhealthy: "var(--color-unhealthy)",
+  very: "var(--color-very)",
+  hazard: "var(--color-hazard)",
 };
 
-export function WireMap({ stations, regions, areas, theme, layers, focus, onSelect }: Props) {
-  const host = useRef<HTMLDivElement | null>(null);
-  const mapRef = useRef<MlMap | null>(null);
-  const nsRef = useRef<MlNs | null>(null);
-  const markers = useRef<{ id: string; marker: import("maplibre-gl").Marker; el: HTMLButtonElement }[]>([]);
-  const [ready, setReady] = useState(0);
-  const stationsRef = useRef(stations);
-  stationsRef.current = stations;
-  const onSelectRef = useRef(onSelect);
-  onSelectRef.current = onSelect;
+function project(lon: number, lat: number): [number, number] {
+  const x = ((lon - SG_FRAME.minLon) / (SG_FRAME.maxLon - SG_FRAME.minLon)) * VB_W;
+  const y = ((SG_FRAME.maxLat - lat) / (SG_FRAME.maxLat - SG_FRAME.minLat)) * VB_H;
+  return [x, y];
+}
 
-  useEffect(() => {
-    let dead = false;
-    const node = host.current;
-    if (!node) return;
-    void import("maplibre-gl").then((ns) => {
-      if (dead || !host.current) return;
-      ns.setWorkerUrl(maplibreWorkerUrl);
-      nsRef.current = ns;
-      const map = new ns.Map({
-        container: host.current,
-        style: styleForTheme(),
-        center: [103.8198, 1.3521],
-        zoom: 10.35,
-        minZoom: 9.2,
-        maxZoom: 14.5,
-        attributionControl: false,
-        maxBounds: [
-          [103.45, 1.12],
-          [104.15, 1.52],
-        ],
-      });
-      map.addControl(new ns.AttributionControl({ compact: true }), "bottom-right");
-      map.addControl(new ns.NavigationControl({ showCompass: false }), "top-right");
-      map.on("load", () => {
-        if (!dead) setReady((n) => n + 1);
-      });
-      mapRef.current = map;
-    });
-    return () => {
-      dead = true;
-      markers.current.forEach((m) => m.marker.remove());
-      markers.current = [];
-      mapRef.current?.remove();
-      mapRef.current = null;
-    };
+export function WireMap({ stations, regions, areas, layers, focus, onSelect }: Props) {
+  const [tip, setTip] = useState<string | null>(null);
+  const coast = useMemo(() => SG_RING.map(([lon, lat]) => project(lon, lat).map((n) => n.toFixed(1)).join(",")).join(" "), []);
+  const grid = useMemo(() => {
+    const lines: { x1: number; y1: number; x2: number; y2: number }[] = [];
+    for (let lon = 103.65; lon < 104.05; lon += 0.1) {
+      const [x] = project(lon, SG_FRAME.minLat);
+      lines.push({ x1: x, y1: 0, x2: x, y2: VB_H });
+    }
+    for (let lat = 1.25; lat < 1.46; lat += 0.05) {
+      const [, y] = project(SG_FRAME.minLon, lat);
+      lines.push({ x1: 0, y1: y, x2: VB_W, y2: y });
+    }
+    return lines;
   }, []);
-
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map) return;
-    const apply = () => {
-      if (!map.getLayer("bg")) return;
-      const bg = token("--color-bg", "#07090d");
-      const water = token("--color-surface", "#10161c");
-      const line = token("--color-line", "#24323a");
-      const primary = token("--color-primary", "#2ee6a6");
-      const muted = token("--color-muted", "#8ea0a8");
-      map.setPaintProperty("bg", "background-color", bg);
-      map.setPaintProperty("water", "fill-color", water);
-      map.setPaintProperty("waterway", "line-color", line);
-      map.setPaintProperty("roads", "line-color", primary);
-      map.setPaintProperty("roads", "line-opacity", 0.28);
-      map.setPaintProperty("roads-major", "line-color", primary);
-      map.setPaintProperty("roads-major", "line-opacity", 0.85);
-      map.setPaintProperty("boundary", "line-color", primary);
-      map.setPaintProperty("places", "text-color", muted);
-      map.setPaintProperty("places", "text-halo-color", bg);
-    };
-    if (map.isStyleLoaded()) apply();
-    else map.once("load", apply);
-  }, [theme, ready]);
-
-  useEffect(() => {
-    const map = mapRef.current;
-    const ns = nsRef.current;
-    if (!map || !ns) return;
-    const sync = () => {
-      const wanted = new Map(stations.filter((s) => s.windFromDeg != null).map((s) => [s.id, s]));
-      const keep = new Set<string>();
-      for (const entry of markers.current) {
-        const station = wanted.get(entry.id);
-        if (!station || !layers.wind) {
-          entry.marker.remove();
-          continue;
-        }
-        keep.add(entry.id);
-        const arrow = entry.el.querySelector(".wind-arrow") as HTMLElement | null;
-        if (arrow && station.windFromDeg != null) {
-          const toward = (station.windFromDeg + 180) % 360;
-          const scale = 0.75 + Math.min(station.windKnots ?? 1, 12) / 18;
-          arrow.style.transform = `rotate(${toward}deg) scale(${scale})`;
-        }
-        entry.el.dataset.hot = station.rainMm && station.rainMm > 0 ? "true" : "false";
-        entry.el.setAttribute("aria-label", `${station.name} wind`);
-      }
-      markers.current = markers.current.filter((entry) => keep.has(entry.id));
-      if (!layers.wind) return;
-      for (const station of wanted.values()) {
-        if (keep.has(station.id) || station.windFromDeg == null) continue;
-        const el = document.createElement("button");
-        el.type = "button";
-        el.className = "wind-pin";
-        el.dataset.hot = station.rainMm && station.rainMm > 0 ? "true" : "false";
-        el.setAttribute("aria-label", `${station.name} wind`);
-        const arrow = document.createElement("span");
-        arrow.className = "wind-arrow flow";
-        const toward = (station.windFromDeg + 180) % 360;
-        const scale = 0.75 + Math.min(station.windKnots ?? 1, 12) / 18;
-        arrow.style.transform = `rotate(${toward}deg) scale(${scale})`;
-        el.appendChild(arrow);
-        el.addEventListener("click", () => {
-          const current = stationsRef.current.find((s) => s.id === station.id);
-          if (current) onSelectRef.current(current);
-        });
-        const marker = new ns.Marker({ element: el, anchor: "center" })
-          .setLngLat([station.lon, station.lat])
-          .addTo(map);
-        markers.current.push({ id: station.id, marker, el });
-      }
-    };
-    if (map.isStyleLoaded()) sync();
-    else map.once("load", sync);
-  }, [stations, layers.wind, ready]);
-
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map) return;
-    const draw = () => {
-      const hazeData = {
-        type: "FeatureCollection" as const,
-        features: regions.map((r) => ({
-          type: "Feature" as const,
-          properties: {
-            id: r.id,
-            color: token(PSI_COLOR[r.psi != null ? psiKey(r.psi) : "moderate"] ?? "--color-muted", "#8ea0a8"),
-          },
-          geometry: { type: "Point" as const, coordinates: [r.lon, r.lat] },
-        })),
-      };
-      const rainData = {
-        type: "FeatureCollection" as const,
-        features: stations
-          .filter((s) => (s.rainMm ?? 0) > 0)
-          .map((s) => ({
-            type: "Feature" as const,
-            properties: { mm: s.rainMm ?? 0 },
-            geometry: { type: "Point" as const, coordinates: [s.lon, s.lat] },
-          })),
-      };
-      const areaData = {
-        type: "FeatureCollection" as const,
-        features: areas.map((a) => ({
-          type: "Feature" as const,
-          properties: { name: a.name, forecast: a.forecast, tone: forecastTone(a.forecast) },
-          geometry: { type: "Point" as const, coordinates: [a.lon, a.lat] },
-        })),
-      };
-      upsert(map, "haze", hazeData);
-      upsert(map, "rain", rainData);
-      upsert(map, "areas", areaData);
-      if (!map.getLayer("haze-glow")) {
-        map.addLayer({
-          id: "haze-glow",
-          type: "circle",
-          source: "haze",
-          paint: {
-            "circle-radius": ["interpolate", ["linear"], ["zoom"], 9, 28, 12, 70],
-            "circle-color": ["get", "color"],
-            "circle-opacity": 0.22,
-            "circle-blur": 0.65,
-          },
-        });
-        map.addLayer({
-          id: "rain-ring",
-          type: "circle",
-          source: "rain",
-          paint: {
-            "circle-radius": ["interpolate", ["linear"], ["get", "mm"], 0, 6, 10, 18],
-            "circle-color": token("--color-accent", "#ff4d8d"),
-            "circle-opacity": 0.35,
-            "circle-stroke-width": 1,
-            "circle-stroke-color": token("--color-accent", "#ff4d8d"),
-          },
-        });
-        map.addLayer({
-          id: "area-dot",
-          type: "circle",
-          source: "areas",
-          paint: {
-            "circle-radius": 3.5,
-            "circle-color": [
-              "match",
-              ["get", "tone"],
-              "storm",
-              token("--color-accent", "#ff4d8d"),
-              "wet",
-              token("--color-moderate", "#e6c15a"),
-              token("--color-muted", "#8ea0a8"),
-            ],
-            "circle-opacity": 0.9,
-          },
-        });
-        map.on("click", "area-dot", (event) => {
-          const feature = event.features?.[0];
-          const props = feature?.properties;
-          if (!nsRef.current || !props || !feature) return;
-          const coords = (feature.geometry as { type: "Point"; coordinates: [number, number] }).coordinates;
-          new nsRef.current.Popup({ closeButton: true, offset: 8 })
-            .setLngLat(coords)
-            .setHTML(
-              `<div class="text-xs"><div class="font-display text-sm">${escapeHtml(String(props.name))}</div><div class="text-muted">${escapeHtml(String(props.forecast))}</div></div>`,
-            )
-            .addTo(map);
-        });
-      }
-      map.setLayoutProperty("haze-glow", "visibility", layers.haze ? "visible" : "none");
-      map.setLayoutProperty("rain-ring", "visibility", layers.rain ? "visible" : "none");
-      map.setLayoutProperty("area-dot", "visibility", layers.nowcast ? "visible" : "none");
-    };
-    if (map.isStyleLoaded()) draw();
-    else map.once("load", draw);
-  }, [stations, regions, areas, layers.haze, layers.rain, layers.nowcast, theme, ready]);
-
-  useEffect(() => {
-    if (!focus || !mapRef.current) return;
-    mapRef.current.flyTo({ center: [focus.lon, focus.lat], zoom: 12, essential: true });
-  }, [focus]);
+  const winds = stations.filter((s) => s.windFromDeg != null);
+  const rain = stations.filter((s) => (s.rainMm ?? 0) > 0);
+  const focusPt = focus ? project(focus.lon, focus.lat) : null;
 
   return (
-    <div className="relative h-full min-h-0">
-      <div ref={host} className="absolute inset-0" />
+    <div className="absolute inset-0">
+      <svg
+        viewBox={`0 0 ${VB_W} ${VB_H}`}
+        className="h-full w-full"
+        role="img"
+        aria-label="Singapore wire map"
+        preserveAspectRatio="xMidYMid meet"
+      >
+        <rect width={VB_W} height={VB_H} fill="var(--color-bg)" />
+        {grid.map((line) => (
+          <line key={`${line.x1}-${line.y1}-${line.x2}`} {...line} stroke="var(--color-line)" strokeWidth="1" />
+        ))}
+        <polygon points={coast} fill="var(--color-surface-2)" stroke="var(--color-primary)" strokeWidth="2.4" />
+        <polygon points={coast} fill="none" stroke="var(--color-primary)" strokeWidth="7" opacity="0.18" />
+        {layers.haze
+          ? regions.map((region) => {
+              const [x, y] = project(region.lon, region.lat);
+              const color = PSI_COLOR[region.psi != null ? psiKey(region.psi) : "moderate"] ?? "var(--color-muted)";
+              return (
+                <g key={region.id}>
+                  <circle cx={x} cy={y} r="78" fill={color} opacity="0.22" />
+                  <text x={x} y={y - 8} textAnchor="middle" fill="var(--color-fg)" fontSize="15" fontFamily="var(--font-body)">
+                    {region.id}
+                  </text>
+                  <text x={x} y={y + 12} textAnchor="middle" fill={color} fontSize="16" fontFamily="var(--font-display)">
+                    {region.psi == null ? "" : Math.round(region.psi)}
+                  </text>
+                </g>
+              );
+            })
+          : null}
+        {layers.nowcast
+          ? areas.map((area) => {
+              const [x, y] = project(area.lon, area.lat);
+              const tone = forecastTone(area.forecast);
+              const color = tone === "storm" ? "var(--color-accent)" : tone === "wet" ? "var(--color-moderate)" : "var(--color-muted)";
+              return (
+                <circle
+                  key={area.name}
+                  cx={x}
+                  cy={y}
+                  r="5"
+                  fill={color}
+                  onClick={() => setTip(`${area.name} · ${area.forecast}`)}
+                >
+                  <title>
+                    {area.name}: {area.forecast}
+                  </title>
+                </circle>
+              );
+            })
+          : null}
+        {layers.rain
+          ? rain.map((station) => {
+              const [x, y] = project(station.lon, station.lat);
+              const r = 8 + Math.min(station.rainMm ?? 0, 12);
+              return <circle key={`rain-${station.id}`} cx={x} cy={y} r={r} fill="none" stroke="var(--color-accent)" strokeWidth="1.6" opacity="0.85" />;
+            })
+          : null}
+        {layers.wind
+          ? winds.map((station) => {
+              const [x, y] = project(station.lon, station.lat);
+              const toward = ((station.windFromDeg ?? 0) + 180) % 360;
+              const scale = 0.85 + Math.min(station.windKnots ?? 1, 14) / 16;
+              const hot = (station.rainMm ?? 0) > 0;
+              return (
+                <g
+                  key={station.id}
+                  transform={`translate(${x} ${y}) rotate(${toward}) scale(${scale})`}
+                  className="cursor-pointer"
+                  onClick={() => onSelect(station)}
+                >
+                  <title>
+                    {station.name}
+                    {station.windKnots != null ? ` · ${round1(knotsToKmh(station.windKnots))} km/h` : ""}
+                  </title>
+                  <polygon points="0,-16 5,8 0,4 -5,8" fill={hot ? "var(--color-accent)" : "var(--color-primary)"} />
+                  <circle cx="0" cy="0" r="16" fill="transparent" />
+                </g>
+              );
+            })
+          : null}
+        {focusPt ? <circle cx={focusPt[0]} cy={focusPt[1]} r="18" fill="none" stroke="var(--color-fg)" strokeWidth="1.5" /> : null}
+      </svg>
       <div className="scanlines" />
-      <StationHint stations={stations} />
+      <div className="pointer-events-none absolute bottom-3 left-3 flex flex-wrap gap-2 text-xs">
+        <span className="panel px-2 py-1 text-muted">
+          {winds.length} wind stations · {rain.length} reporting rain
+        </span>
+        {tip ? <span className="panel px-2 py-1">{tip}</span> : null}
+      </div>
     </div>
   );
-}
-
-function StationHint({ stations }: { stations: Station[] }) {
-  const raining = stations.filter((s) => (s.rainMm ?? 0) > 0).length;
-  const windy = stations.filter((s) => s.windFromDeg != null).length;
-  return (
-    <div className="pointer-events-none absolute bottom-3 left-3 flex gap-2 text-xs">
-      <span className="panel px-2 py-1 text-muted">
-        {windy} wind stations · {raining} reporting rain
-      </span>
-    </div>
-  );
-}
-
-function upsert(map: MlMap, id: string, data: { type: "FeatureCollection"; features: object[] }) {
-  const source = map.getSource(id) as import("maplibre-gl").GeoJSONSource | undefined;
-  if (source) source.setData(data);
-  else map.addSource(id, { type: "geojson", data });
-}
-
-function escapeHtml(value: string) {
-  return value.replace(/[&<>"']/g, (ch) => {
-    if (ch === "&") return "\u0026amp;";
-    if (ch === "<") return "\u0026lt;";
-    if (ch === ">") return "\u0026gt;";
-    if (ch === '"') return "\u0026quot;";
-    return "\u0026#39;";
-  });
 }

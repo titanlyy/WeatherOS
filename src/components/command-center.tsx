@@ -130,23 +130,23 @@ export function CommandCenter() {
       {error ? <p className="mx-4 mb-3 text-sm text-accent">{error}</p> : null}
 
       <div className="mid flex-1 px-3 pb-3 lg:px-4">
-        <aside className="side mb-3 space-y-3 lg:mb-0 lg:pr-3">
-          <section className="panel p-3">
+        <aside className="side mb-3 min-w-0 space-y-3 lg:mb-0 lg:pr-3">
+          <section className="panel min-w-0 overflow-hidden p-3">
             <h2 className="font-display text-sm tracking-wide">Regions</h2>
             <p className="mb-2 text-xs text-muted">24h PSI · 1h PM2.5 µg/m³</p>
             <ul className="space-y-2">
               {regions.map((region) => (
-                <li key={region.id}>
+                <li key={region.id} className="min-w-0">
                   <button
                     type="button"
-                    className="flex w-full min-h-11 items-center gap-3 rounded-md border border-line bg-bg px-2 py-2 text-left"
+                    className="grid w-full min-w-0 grid-cols-[0.65rem_minmax(0,1fr)_auto] items-center gap-x-2 gap-y-0.5 rounded-md border border-line bg-bg px-2 py-2 text-left"
                     onClick={() => setFocus({ lon: region.lon, lat: region.lat, nonce: Date.now() })}
                   >
-                    <span className={`size-2.5 shrink-0 rounded-full ${dotClass(region)}`} />
-                    <span className="w-16 text-sm">{title(region.id)}</span>
-                    <span className="text-lg tabular-nums">{region.psi == null ? "—" : Math.round(region.psi)}</span>
-                    <span className="text-xs text-muted">{region.psi == null ? "" : psiLabel(region.psi)}</span>
-                    <span className="ml-auto text-right text-xs">
+                    <span className={`col-start-1 row-span-2 size-2.5 justify-self-center rounded-full ${dotClass(region)}`} />
+                    <span className="truncate text-sm">{title(region.id)}</span>
+                    <span className="text-right text-lg leading-none tabular-nums">{region.psi == null ? "—" : Math.round(region.psi)}</span>
+                    <span className="truncate text-xs text-muted">{region.psi == null ? "" : psiLabel(region.psi)}</span>
+                    <span className="text-right text-xs leading-tight">
                       <span className="block tabular-nums">{region.pm25h == null ? "—" : Math.round(region.pm25h)}</span>
                       <span className="text-muted">{region.pm25h == null ? "" : pmLabel(region.pm25h)}</span>
                     </span>
@@ -243,8 +243,8 @@ export function CommandCenter() {
           {!briefing?.outlook.length && !loading ? <p className="text-sm text-muted">Outlook not in this pull.</p> : null}
         </div>
         <p className="mt-3 text-xs text-muted">
-          Readings from the National Environment Agency via data.gov.sg, Singapore Open Data Licence. Map tiles © OpenFreeMap /
-          OpenStreetMap contributors. Not an official NEA site.
+          Readings from the National Environment Agency via data.gov.sg, Singapore Open Data Licence. Coastline © OpenStreetMap
+          contributors. Not an official NEA site.
         </p>
       </section>
     </div>

@@ -1,5 +1,4 @@
 @import "tailwindcss";
-@import "maplibre-gl/dist/maplibre-gl.css";
 
 @theme {
   --font-display: "Syne", "Outfit", sans-serif;
@@ -111,83 +110,9 @@
 
   .side {
     min-height: 0;
+    min-width: 0;
     overflow: auto;
   }
-}
-
-.wind-pin {
-  width: 1.75rem;
-  height: 1.75rem;
-  display: grid;
-  place-items: center;
-  background: transparent;
-  border: 0;
-  padding: 0;
-}
-
-.wind-arrow {
-  width: 0.35rem;
-  height: 1.15rem;
-  border-radius: 999px;
-  background: var(--color-primary);
-  position: relative;
-  transform-origin: center center;
-  box-shadow: 0 0 10px color-mix(in srgb, var(--color-primary) 70%, transparent);
-}
-
-.wind-arrow::before {
-  content: "";
-  position: absolute;
-  top: -0.28rem;
-  left: 50%;
-  width: 0.55rem;
-  height: 0.55rem;
-  border-top: 2px solid var(--color-primary);
-  border-right: 2px solid var(--color-primary);
-  transform: translateX(-50%) rotate(-45deg);
-}
-
-.wind-pin[data-hot="true"] .wind-arrow {
-  background: var(--color-accent);
-  box-shadow: 0 0 12px color-mix(in srgb, var(--color-accent) 70%, transparent);
-}
-
-.wind-pin[data-hot="true"] .wind-arrow::before {
-  border-color: var(--color-accent);
-}
-
-.maplibregl-popup-content {
-  background: var(--color-surface);
-  color: var(--color-fg);
-  border: 1px solid var(--color-line);
-  border-radius: var(--radius);
-  box-shadow: none;
-  padding: 0.7rem 0.8rem;
-  font-family: var(--font-body);
-}
-
-.maplibregl-popup-close-button {
-  color: var(--color-muted);
-  font-size: 1rem;
-  padding: 0.15rem 0.35rem;
-}
-
-.maplibregl-popup-anchor-bottom .maplibregl-popup-tip,
-.maplibregl-popup-anchor-top .maplibregl-popup-tip,
-.maplibregl-popup-anchor-left .maplibregl-popup-tip,
-.maplibregl-popup-anchor-right .maplibregl-popup-tip {
-  border-top-color: var(--color-surface);
-  border-bottom-color: var(--color-surface);
-}
-
-.maplibregl-ctrl-attrib {
-  background: color-mix(in srgb, var(--color-bg) 80%, transparent) !important;
-  color: var(--color-muted) !important;
-  font-family: var(--font-body);
-}
-
-.maplibregl-ctrl-attrib a {
-  color: var(--color-muted) !important;
 }
 
 .scanlines {
