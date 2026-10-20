@@ -22,10 +22,7 @@ type Props = {
 
 const COLLECTION = planning as FeatureCollection;
 
-const TILES: Record<ThemeId, string> = {
-  cyber: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
-  solar: "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
-};
+const OSM_TILES = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
 
 const CITY = new Set([
   "downtown core",
@@ -124,21 +121,21 @@ function tipHtml(props: AreaProps, areas: AreaNow[], regions: Region[], stations
   const lines = [`<p class="area-name">${esc(props.name)}</p>`];
   if (forecast) {
     lines.push(`<p class="area-wx">${esc(forecast.forecast)}</p>`);
-    if (forecast.name.toLowerCase() !== props.name.toLowerCase()) lines.push(`<p>NEA area · ${esc(forecast.name)}</p>`);
+    if (forecast.name.toLowerCase() !== props.name.toLowerCase()) lines.push(`<p>NEA area \u00b7 ${esc(forecast.name)}</p>`);
   } else {
     lines.push(`<p>No 2-hour forecast yet</p>`);
   }
-  if (validText) lines.push(`<p>2-hour · ${esc(validText)}</p>`);
+  if (validText) lines.push(`<p>2-hour \u00b7 ${esc(validText)}</p>`);
   if (region) {
-    const psi = region.psi == null ? "—" : `${Math.round(region.psi)} ${psiLabel(region.psi)}`;
-    const pm = region.pm25h == null ? "—" : `${Math.round(region.pm25h)} ${pmLabel(region.pm25h)}`;
+    const psi = region.psi == null ? "\u2014" : `${Math.round(region.psi)} ${psiLabel(region.psi)}`;
+    const pm = region.pm25h == null ? "\u2014" : `${Math.round(region.pm25h)} ${pmLabel(region.pm25h)}`;
     const regionName = region.id.charAt(0).toUpperCase() + region.id.slice(1);
-    lines.push(`<p>${esc(regionName)} PSI ${esc(psi)} · PM2.5 ${esc(pm)}</p>`);
+    lines.push(`<p>${esc(regionName)} PSI ${esc(psi)} \u00b7 PM2.5 ${esc(pm)}</p>`);
   }
   if (station) {
-    const temp = station.tempC == null ? "—" : `${round1(station.tempC)}°C`;
-    const rain = station.rainMm == null ? "—" : `${round1(station.rainMm)} mm`;
-    lines.push(`<p>Nearest station ${esc(station.name)} · ${esc(temp)} · rain ${esc(rain)}</p>`);
+    const temp = station.tempC == null ? "\u2014" : `${round1(station.tempC)}\u00b0C`;
+    const rain = station.rainMm == null ? "\u2014" : `${round1(station.rainMm)} mm`;
+    lines.push(`<p>Nearest station ${esc(station.name)} \u00b7 ${esc(temp)} \u00b7 rain ${esc(rain)}</p>`);
   }
   return lines.join("");
 }
@@ -172,7 +169,6 @@ export function WireMap({ stations, regions, areas, theme, layers, focus, validT
   const areasRef = useRef<GeoLayer | null>(null);
   const marksRef = useRef<LayerGroup | null>(null);
   const nsRef = useRef<typeof import("leaflet") | null>(null);
-  const urlRef = useRef<string | null>(null);
   const nonceRef = useRef<number | null>(null);
   const dataRef = useRef({ stations, regions, areas, theme, layers, validText, onSelect });
   dataRef.current = { stations, regions, areas, theme, layers, validText, onSelect };
@@ -197,13 +193,9 @@ export function WireMap({ stations, regions, areas, theme, layers, focus, validT
         maxBoundsViscosity: 0.7,
       });
       L.control.zoom({ position: "bottomright" }).addTo(map);
-      const live = dataRef.current;
-      urlRef.current = TILES[live.theme];
-      tilesRef.current = L.tileLayer(urlRef.current, {
-        attribution:
-          '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
-        subdomains: "abcd",
-        maxZoom: 20,
+      tilesRef.current = L.tileLayer(OSM_TILES, {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+        maxZoom: 19,
       }).addTo(map);
       const geo = L.geoJSON(COLLECTION as GeoJsonObject, {
         style: (feature) => {
@@ -281,10 +273,10 @@ export function WireMap({ stations, regions, areas, theme, layers, focus, validT
   }, [focus]);
 
   return (
-    <div className="absolute inset-0">
+    <div className={`absolute inset-0${theme === "cyber" ? " map-dark" : ""}`}>
       <div ref={host} className="absolute inset-0" role="application" aria-label="Singapore map. Hover a planning area for the 2-hour forecast." />
       <p className="pointer-events-none absolute bottom-3 left-3 z-[500] panel px-2 py-1 text-xs text-muted">
-        Hover an area · {areas.filter((area) => forecastTone(area.forecast) !== "calm").length} areas with rain in the nowcast
+        Hover an area \u00b7 {areas.filter((area) => forecastTone(area.forecast) !== "calm").length} areas with rain in the nowcast
       </p>
     </div>
   );
@@ -297,11 +289,6 @@ export function WireMap({ stations, regions, areas, theme, layers, focus, validT
     const marks = marksRef.current;
     if (!L || !map || !tiles || !geo || !marks) return;
     const current = dataRef.current;
-    const next = TILES[current.theme];
-    if (urlRef.current !== next) {
-      tiles.setUrl(next);
-      urlRef.current = next;
-    }
     geo.setStyle((feature) => {
       const props = feature?.properties as AreaProps | undefined;
       if (!props) return {};
