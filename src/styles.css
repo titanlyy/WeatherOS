@@ -1,0 +1,244 @@
+@import "tailwindcss";
+@import "maplibre-gl/dist/maplibre-gl.css";
+
+@theme {
+  --font-display: "Syne", "Outfit", sans-serif;
+  --font-body: "IBM Plex Mono", ui-monospace, monospace;
+  --color-bg: #07090d;
+  --color-surface: #10161c;
+  --color-surface-2: #172028;
+  --color-fg: #e7f4f2;
+  --color-muted: #8ea0a8;
+  --color-primary: #2ee6a6;
+  --color-accent: #ff4d8d;
+  --color-line: #24323a;
+  --color-good: #2ee6a6;
+  --color-moderate: #e6c15a;
+  --color-unhealthy: #ff7a45;
+  --color-very: #ff4d8d;
+  --color-hazard: #ff2d4a;
+  --radius: 0.75rem;
+}
+
+:root,
+[data-theme="cyber"] {
+  color-scheme: dark;
+}
+
+[data-theme="solar"] {
+  color-scheme: light;
+  --font-display: "Fraunces", Georgia, serif;
+  --font-body: "Outfit", sans-serif;
+  --color-bg: #f4f0e6;
+  --color-surface: #fffaf2;
+  --color-surface-2: #e7f0e2;
+  --color-fg: #1a2a22;
+  --color-muted: #5d6f64;
+  --color-primary: #1f7a45;
+  --color-accent: #c47a12;
+  --color-line: #d5d0c2;
+  --color-good: #1f7a45;
+  --color-moderate: #a07a12;
+  --color-unhealthy: #c45c26;
+  --color-very: #a33b4a;
+  --color-hazard: #7a1f2b;
+}
+
+@layer base {
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+
+  html,
+  body {
+    background: var(--color-bg);
+    color: var(--color-fg);
+    font-family: var(--font-body);
+  }
+
+  body {
+    min-height: 100dvh;
+  }
+}
+
+.desk {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+.mid {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.map-pane {
+  position: relative;
+  height: 68dvh;
+  min-height: 22rem;
+  background: var(--color-surface);
+}
+
+.outlook {
+  flex-shrink: 0;
+}
+
+.panel {
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius);
+}
+
+@media (min-width: 1024px) {
+  .desk {
+    height: 100dvh;
+    overflow: hidden;
+  }
+
+  .mid {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 18.5rem minmax(0, 1fr) 20rem;
+    min-height: 0;
+  }
+
+  .map-pane {
+    height: auto;
+    min-height: 0;
+  }
+
+  .side {
+    min-height: 0;
+    overflow: auto;
+  }
+}
+
+.wind-pin {
+  width: 1.75rem;
+  height: 1.75rem;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  border: 0;
+  padding: 0;
+}
+
+.wind-arrow {
+  width: 0.35rem;
+  height: 1.15rem;
+  border-radius: 999px;
+  background: var(--color-primary);
+  position: relative;
+  transform-origin: center center;
+  box-shadow: 0 0 10px color-mix(in srgb, var(--color-primary) 70%, transparent);
+}
+
+.wind-arrow::before {
+  content: "";
+  position: absolute;
+  top: -0.28rem;
+  left: 50%;
+  width: 0.55rem;
+  height: 0.55rem;
+  border-top: 2px solid var(--color-primary);
+  border-right: 2px solid var(--color-primary);
+  transform: translateX(-50%) rotate(-45deg);
+}
+
+.wind-pin[data-hot="true"] .wind-arrow {
+  background: var(--color-accent);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--color-accent) 70%, transparent);
+}
+
+.wind-pin[data-hot="true"] .wind-arrow::before {
+  border-color: var(--color-accent);
+}
+
+.maplibregl-popup-content {
+  background: var(--color-surface);
+  color: var(--color-fg);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius);
+  box-shadow: none;
+  padding: 0.7rem 0.8rem;
+  font-family: var(--font-body);
+}
+
+.maplibregl-popup-close-button {
+  color: var(--color-muted);
+  font-size: 1rem;
+  padding: 0.15rem 0.35rem;
+}
+
+.maplibregl-popup-anchor-bottom .maplibregl-popup-tip,
+.maplibregl-popup-anchor-top .maplibregl-popup-tip,
+.maplibregl-popup-anchor-left .maplibregl-popup-tip,
+.maplibregl-popup-anchor-right .maplibregl-popup-tip {
+  border-top-color: var(--color-surface);
+  border-bottom-color: var(--color-surface);
+}
+
+.maplibregl-ctrl-attrib {
+  background: color-mix(in srgb, var(--color-bg) 80%, transparent) !important;
+  color: var(--color-muted) !important;
+  font-family: var(--font-body);
+}
+
+.maplibregl-ctrl-attrib a {
+  color: var(--color-muted) !important;
+}
+
+.scanlines {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent 2px,
+    color-mix(in srgb, var(--color-fg) 4%, transparent) 3px
+  );
+  mix-blend-mode: soft-light;
+}
+
+[data-theme="solar"] .scanlines {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flow,
+  .pulse-dot {
+    animation: none !important;
+  }
+}
+
+@keyframes flow {
+  0% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.45;
+  }
+}
+
+.flow {
+  animation: flow 1.8s ease-in-out infinite;
+}
+
+@keyframes acquire {
+  0% {
+    transform: translateX(-60%);
+  }
+  100% {
+    transform: translateX(220%);
+  }
+}
+
+.acquire {
+  animation: acquire 1.4s ease-in-out infinite;
+}
