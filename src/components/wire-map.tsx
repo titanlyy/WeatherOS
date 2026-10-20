@@ -1,148 +1,351 @@
-import { useMemo, useState } from "react";
-import type { AreaNow, Region, Station } from "@/lib/weather-model";
-import { forecastTone, knotsToKmh, psiKey, round1 } from "@/lib/weather-model";
-import { SG_FRAME, SG_RING } from "@/lib/sg-coast";
+import { useEffect, useRef } from "react";
+import type { GeoJSON as GeoLayer, LayerGroup, Map as LeafletMap, Path, TileLayer } from "leaflet";
+import type { Feature, FeatureCollection, GeoJsonObject } from "geojson";
+import planning from "@/lib/planning-areas.json";
+import type { AreaNow, Region, Station, ThemeId } from "@/lib/weather-model";
+import { forecastTone, knotsToKmh, pmLabel, psiKey, psiLabel, round1 } from "@/lib/weather-model";
 
 type Layers = { wind: boolean; rain: boolean; haze: boolean; nowcast: boolean };
+
+type AreaProps = { name: string; region: string; lon: number; lat: number };
 
 type Props = {
   stations: Station[];
   regions: Region[];
   areas: AreaNow[];
-  theme: string;
+  theme: ThemeId;
   layers: Layers;
   focus: { lon: number; lat: number; nonce: number } | null;
+  validText: string | null;
   onSelect: (station: Station) => void;
 };
 
-const VB_W = 1000;
-const VB_H = 620;
+const COLLECTION = planning as FeatureCollection;
 
-const PSI_COLOR: Record<string, string> = {
-  good: "var(--color-good)",
-  moderate: "var(--color-moderate)",
-  unhealthy: "var(--color-unhealthy)",
-  very: "var(--color-very)",
-  hazard: "var(--color-hazard)",
+const TILES: Record<ThemeId, string> = {
+  cyber: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+  solar: "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
 };
 
-function project(lon: number, lat: number): [number, number] {
-  const x = ((lon - SG_FRAME.minLon) / (SG_FRAME.maxLon - SG_FRAME.minLon)) * VB_W;
-  const y = ((SG_FRAME.maxLat - lat) / (SG_FRAME.maxLat - SG_FRAME.minLat)) * VB_H;
-  return [x, y];
+const CITY = new Set([
+  "downtown core",
+  "museum",
+  "newton",
+  "orchard",
+  "outram",
+  "river valley",
+  "rochor",
+  "singapore river",
+  "marina east",
+  "marina south",
+  "straits view",
+]);
+
+const PSI_HEX: Record<string, string> = {
+  good: "#1f9d6a",
+  moderate: "#c88812",
+  unhealthy: "#e06a2c",
+  very: "#d23b4a",
+  hazard: "#9b1d38",
+};
+
+function esc(value: string) {
+  return value
+    .replace(/&/g, "\u0026amp;")
+    .replace(/</g, "\u0026lt;")
+    .replace(/>/g, "\u0026gt;")
+    .replace(/"/g, "\u0026quot;")
+    .replace(/'/g, "\u0026#39;");
 }
 
-export function WireMap({ stations, regions, areas, layers, focus, onSelect }: Props) {
-  const [tip, setTip] = useState<string | null>(null);
-  const coast = useMemo(() => SG_RING.map(([lon, lat]) => project(lon, lat).map((n) => n.toFixed(1)).join(",")).join(" "), []);
-  const grid = useMemo(() => {
-    const lines: { x1: number; y1: number; x2: number; y2: number }[] = [];
-    for (let lon = 103.65; lon < 104.05; lon += 0.1) {
-      const [x] = project(lon, SG_FRAME.minLat);
-      lines.push({ x1: x, y1: 0, x2: x, y2: VB_H });
+function matchForecast(name: string, lat: number, lon: number, areas: AreaNow[]): AreaNow | null {
+  const key = name.toLowerCase();
+  const direct = areas.find((area) => area.name.toLowerCase() === key);
+  if (direct) return direct;
+  if (CITY.has(key)) return areas.find((area) => area.name.toLowerCase() === "city") ?? null;
+  if (key === "changi bay") return areas.find((area) => area.name.toLowerCase() === "changi") ?? null;
+  let best: AreaNow | null = null;
+  let bestD = Infinity;
+  for (const area of areas) {
+    const d = (area.lat - lat) ** 2 + (area.lon - lon) ** 2;
+    if (d < bestD) {
+      best = area;
+      bestD = d;
     }
-    for (let lat = 1.25; lat < 1.46; lat += 0.05) {
-      const [, y] = project(SG_FRAME.minLon, lat);
-      lines.push({ x1: 0, y1: y, x2: VB_W, y2: y });
+  }
+  return best;
+}
+
+function nearest<T extends { lat: number; lon: number }>(lat: number, lon: number, rows: T[], max = Infinity): T | null {
+  let best: T | null = null;
+  let bestD = max;
+  for (const row of rows) {
+    const d = (row.lat - lat) ** 2 + (row.lon - lon) ** 2;
+    if (d < bestD) {
+      best = row;
+      bestD = d;
     }
-    return lines;
+  }
+  return best;
+}
+
+function wxKind(forecast: string): "sun" | "part" | "cloud" | "rain" | "storm" {
+  const text = forecast.toLowerCase();
+  if (text.includes("thunder")) return "storm";
+  if (text.includes("rain") || text.includes("shower")) return "rain";
+  if (text.includes("partly")) return "part";
+  if (text.includes("cloud")) return "cloud";
+  return "sun";
+}
+
+function wxFill(forecast: string): string {
+  const kind = wxKind(forecast);
+  if (kind === "storm") return "#e25b4a";
+  if (kind === "rain") return "#3b82f6";
+  if (kind === "cloud" || kind === "part") return "#8aa0ad";
+  return "#e6b325";
+}
+
+function glyph(forecast: string): string {
+  const kind = wxKind(forecast);
+  const fill = kind === "storm" ? "#e25b4a" : kind === "rain" ? "#3b82f6" : "#d7e2ea";
+  const sun = `<circle cx="7" cy="7" r="3" fill="#f0c14a"/>`;
+  const cloud = `<path fill="${fill}" d="M8 16h8.2a3.2 3.2 0 0 0 .4-6.4 4.2 4.2 0 0 0-8-1 3 3 0 0 0-.6 7.4z"/>`;
+  const drops = `<path stroke="#7eb6ff" stroke-width="1.4" stroke-linecap="round" d="M9 17.5v2M13 17.5v2M17 17.5v2"/>`;
+  const bolt = `<path fill="#f0c14a" d="M13 15.5h3.2L12.2 22h.1l1.4-4H11l2-2.5z"/>`;
+  const body = kind === "sun" ? `<circle cx="12" cy="12" r="4" fill="#f0c14a"/>` : kind === "part" ? sun + cloud : kind === "storm" ? cloud + bolt : kind === "rain" ? cloud + drops : cloud;
+  return `<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">${body}</svg>`;
+}
+
+function tipHtml(props: AreaProps, areas: AreaNow[], regions: Region[], stations: Station[], validText: string | null) {
+  const forecast = matchForecast(props.name, props.lat, props.lon, areas);
+  const region = nearest(props.lat, props.lon, regions);
+  const station = nearest(props.lat, props.lon, stations, 0.0016);
+  const lines = [`<p class="area-name">${esc(props.name)}</p>`];
+  if (forecast) {
+    lines.push(`<p class="area-wx">${esc(forecast.forecast)}</p>`);
+    if (forecast.name.toLowerCase() !== props.name.toLowerCase()) lines.push(`<p>NEA area · ${esc(forecast.name)}</p>`);
+  } else {
+    lines.push(`<p>No 2-hour forecast yet</p>`);
+  }
+  if (validText) lines.push(`<p>2-hour · ${esc(validText)}</p>`);
+  if (region) {
+    const psi = region.psi == null ? "—" : `${Math.round(region.psi)} ${psiLabel(region.psi)}`;
+    const pm = region.pm25h == null ? "—" : `${Math.round(region.pm25h)} ${pmLabel(region.pm25h)}`;
+    const regionName = region.id.charAt(0).toUpperCase() + region.id.slice(1);
+    lines.push(`<p>${esc(regionName)} PSI ${esc(psi)} · PM2.5 ${esc(pm)}</p>`);
+  }
+  if (station) {
+    const temp = station.tempC == null ? "—" : `${round1(station.tempC)}°C`;
+    const rain = station.rainMm == null ? "—" : `${round1(station.rainMm)} mm`;
+    lines.push(`<p>Nearest station ${esc(station.name)} · ${esc(temp)} · rain ${esc(rain)}</p>`);
+  }
+  return lines.join("");
+}
+
+function areaStyle(props: AreaProps, areas: AreaNow[], regions: Region[], layers: Layers) {
+  const forecast = matchForecast(props.name, props.lat, props.lon, areas);
+  const region = nearest(props.lat, props.lon, regions);
+  const psi = region?.psi != null ? PSI_HEX[psiKey(region.psi)] : "#8ea0a8";
+  let fill = "#8ea0a8";
+  let fillOpacity = 0.04;
+  if (layers.nowcast && forecast) {
+    fill = wxFill(forecast.forecast);
+    fillOpacity = forecastTone(forecast.forecast) === "calm" ? 0.16 : 0.34;
+  } else if (layers.haze) {
+    fill = psi;
+    fillOpacity = 0.28;
+  }
+  return {
+    color: layers.haze ? psi : "rgba(180, 220, 210, 0.85)",
+    weight: 1.25,
+    opacity: 0.9,
+    fillColor: fill,
+    fillOpacity,
+  };
+}
+
+export function WireMap({ stations, regions, areas, theme, layers, focus, validText, onSelect }: Props) {
+  const host = useRef<HTMLDivElement | null>(null);
+  const mapRef = useRef<LeafletMap | null>(null);
+  const tilesRef = useRef<TileLayer | null>(null);
+  const areasRef = useRef<GeoLayer | null>(null);
+  const marksRef = useRef<LayerGroup | null>(null);
+  const nsRef = useRef<typeof import("leaflet") | null>(null);
+  const urlRef = useRef<string | null>(null);
+  const nonceRef = useRef<number | null>(null);
+  const dataRef = useRef({ stations, regions, areas, theme, layers, validText, onSelect });
+  dataRef.current = { stations, regions, areas, theme, layers, validText, onSelect };
+
+  useEffect(() => {
+    const node = host.current;
+    if (!node) return;
+    let dead = false;
+    let map: LeafletMap | null = null;
+    let observer: ResizeObserver | null = null;
+    void import("leaflet").then((L) => {
+      if (dead || !host.current) return;
+      nsRef.current = L;
+      map = L.map(host.current, {
+        zoomControl: false,
+        minZoom: 10,
+        maxZoom: 16,
+        maxBounds: [
+          [1.12, 103.45],
+          [1.52, 104.15],
+        ],
+        maxBoundsViscosity: 0.7,
+      });
+      L.control.zoom({ position: "bottomright" }).addTo(map);
+      const live = dataRef.current;
+      urlRef.current = TILES[live.theme];
+      tilesRef.current = L.tileLayer(urlRef.current, {
+        attribution:
+          '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+        subdomains: "abcd",
+        maxZoom: 20,
+      }).addTo(map);
+      const geo = L.geoJSON(COLLECTION as GeoJsonObject, {
+        style: (feature) => {
+          const props = feature?.properties as AreaProps | undefined;
+          if (!props) return {};
+          const current = dataRef.current;
+          return areaStyle(props, current.areas, current.regions, current.layers);
+        },
+        onEachFeature: (feature: Feature, layer) => {
+          const props = feature.properties as AreaProps;
+          layer.bindTooltip("", { sticky: true, direction: "top", opacity: 1, className: "area-tip" });
+          layer.on("add", () => {
+            (layer as Path).getElement()?.setAttribute("data-area", props.name);
+          });
+          layer.on("click", (event) => {
+            const current = dataRef.current;
+            const html = tipHtml(props, current.areas, current.regions, current.stations, current.validText);
+            layer.getTooltip()?.setContent(html);
+            layer.openTooltip(event.latlng);
+          });
+          layer.on("mouseover", (event) => {
+            const current = dataRef.current;
+            const path = layer as Path;
+            path.setStyle({ weight: 2.4, fillOpacity: 0.48 });
+            path.bringToFront();
+            layer.getTooltip()?.setContent(tipHtml(props, current.areas, current.regions, current.stations, current.validText));
+            layer.openTooltip(event.latlng);
+          });
+          layer.on("mouseout", () => {
+            areasRef.current?.resetStyle(layer);
+            layer.closeTooltip();
+          });
+        },
+      }).addTo(map);
+      areasRef.current = geo;
+      marksRef.current = L.layerGroup().addTo(map);
+      mapRef.current = map;
+      let fitted = false;
+      const fit = () => {
+        map?.invalidateSize();
+        const height = host.current?.offsetHeight ?? 0;
+        if (!fitted && height > 80) {
+          map?.fitBounds(
+            [
+              [1.22, 103.6],
+              [1.47, 104.09],
+            ],
+            { padding: [28, 36] },
+          );
+          fitted = true;
+        }
+      };
+      observer = new ResizeObserver(fit);
+      observer.observe(host.current);
+      fit();
+      paint();
+    });
+    return () => {
+      dead = true;
+      observer?.disconnect();
+      map?.remove();
+      mapRef.current = null;
+    };
   }, []);
-  const winds = stations.filter((s) => s.windFromDeg != null);
-  const rain = stations.filter((s) => (s.rainMm ?? 0) > 0);
-  const focusPt = focus ? project(focus.lon, focus.lat) : null;
+
+  useEffect(() => {
+    paint();
+  }, [theme, layers, stations, regions, areas, validText]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !focus || nonceRef.current === focus.nonce) return;
+    nonceRef.current = focus.nonce;
+    map.flyTo([focus.lat, focus.lon], Math.max(map.getZoom(), 13), { duration: 0.55 });
+  }, [focus]);
 
   return (
     <div className="absolute inset-0">
-      <svg
-        viewBox={`0 0 ${VB_W} ${VB_H}`}
-        className="h-full w-full"
-        role="img"
-        aria-label="Singapore wire map"
-        preserveAspectRatio="xMidYMid meet"
-      >
-        <rect width={VB_W} height={VB_H} fill="var(--color-bg)" />
-        {grid.map((line) => (
-          <line key={`${line.x1}-${line.y1}-${line.x2}`} {...line} stroke="var(--color-line)" strokeWidth="1" />
-        ))}
-        <polygon points={coast} fill="var(--color-surface-2)" stroke="var(--color-primary)" strokeWidth="2.4" />
-        <polygon points={coast} fill="none" stroke="var(--color-primary)" strokeWidth="7" opacity="0.18" />
-        {layers.haze
-          ? regions.map((region) => {
-              const [x, y] = project(region.lon, region.lat);
-              const color = PSI_COLOR[region.psi != null ? psiKey(region.psi) : "moderate"] ?? "var(--color-muted)";
-              return (
-                <g key={region.id}>
-                  <circle cx={x} cy={y} r="78" fill={color} opacity="0.22" />
-                  <text x={x} y={y - 8} textAnchor="middle" fill="var(--color-fg)" fontSize="15" fontFamily="var(--font-body)">
-                    {region.id}
-                  </text>
-                  <text x={x} y={y + 12} textAnchor="middle" fill={color} fontSize="16" fontFamily="var(--font-display)">
-                    {region.psi == null ? "" : Math.round(region.psi)}
-                  </text>
-                </g>
-              );
-            })
-          : null}
-        {layers.nowcast
-          ? areas.map((area) => {
-              const [x, y] = project(area.lon, area.lat);
-              const tone = forecastTone(area.forecast);
-              const color = tone === "storm" ? "var(--color-accent)" : tone === "wet" ? "var(--color-moderate)" : "var(--color-muted)";
-              return (
-                <circle
-                  key={area.name}
-                  cx={x}
-                  cy={y}
-                  r="5"
-                  fill={color}
-                  onClick={() => setTip(`${area.name} · ${area.forecast}`)}
-                >
-                  <title>
-                    {area.name}: {area.forecast}
-                  </title>
-                </circle>
-              );
-            })
-          : null}
-        {layers.rain
-          ? rain.map((station) => {
-              const [x, y] = project(station.lon, station.lat);
-              const r = 8 + Math.min(station.rainMm ?? 0, 12);
-              return <circle key={`rain-${station.id}`} cx={x} cy={y} r={r} fill="none" stroke="var(--color-accent)" strokeWidth="1.6" opacity="0.85" />;
-            })
-          : null}
-        {layers.wind
-          ? winds.map((station) => {
-              const [x, y] = project(station.lon, station.lat);
-              const toward = ((station.windFromDeg ?? 0) + 180) % 360;
-              const scale = 0.85 + Math.min(station.windKnots ?? 1, 14) / 16;
-              const hot = (station.rainMm ?? 0) > 0;
-              return (
-                <g
-                  key={station.id}
-                  transform={`translate(${x} ${y}) rotate(${toward}) scale(${scale})`}
-                  className="cursor-pointer"
-                  onClick={() => onSelect(station)}
-                >
-                  <title>
-                    {station.name}
-                    {station.windKnots != null ? ` · ${round1(knotsToKmh(station.windKnots))} km/h` : ""}
-                  </title>
-                  <polygon points="0,-16 5,8 0,4 -5,8" fill={hot ? "var(--color-accent)" : "var(--color-primary)"} />
-                  <circle cx="0" cy="0" r="16" fill="transparent" />
-                </g>
-              );
-            })
-          : null}
-        {focusPt ? <circle cx={focusPt[0]} cy={focusPt[1]} r="18" fill="none" stroke="var(--color-fg)" strokeWidth="1.5" /> : null}
-      </svg>
-      <div className="scanlines" />
-      <div className="pointer-events-none absolute bottom-3 left-3 flex flex-wrap gap-2 text-xs">
-        <span className="panel px-2 py-1 text-muted">
-          {winds.length} wind stations · {rain.length} reporting rain
-        </span>
-        {tip ? <span className="panel px-2 py-1">{tip}</span> : null}
-      </div>
+      <div ref={host} className="absolute inset-0" role="application" aria-label="Singapore map. Hover a planning area for the 2-hour forecast." />
+      <p className="pointer-events-none absolute bottom-3 left-3 z-[500] panel px-2 py-1 text-xs text-muted">
+        Hover an area · {areas.filter((area) => forecastTone(area.forecast) !== "calm").length} areas with rain in the nowcast
+      </p>
     </div>
   );
+
+  function paint() {
+    const L = nsRef.current;
+    const map = mapRef.current;
+    const tiles = tilesRef.current;
+    const geo = areasRef.current;
+    const marks = marksRef.current;
+    if (!L || !map || !tiles || !geo || !marks) return;
+    const current = dataRef.current;
+    const next = TILES[current.theme];
+    if (urlRef.current !== next) {
+      tiles.setUrl(next);
+      urlRef.current = next;
+    }
+    geo.setStyle((feature) => {
+      const props = feature?.properties as AreaProps | undefined;
+      if (!props) return {};
+      return areaStyle(props, current.areas, current.regions, current.layers);
+    });
+    marks.clearLayers();
+    if (current.layers.rain) {
+      for (const station of current.stations) {
+        if ((station.rainMm ?? 0) <= 0) continue;
+        L.circleMarker([station.lat, station.lon], {
+          radius: 7 + Math.min(station.rainMm ?? 0, 10),
+          color: "#7eb6ff",
+          weight: 2,
+          fillColor: "#7eb6ff",
+          fillOpacity: 0.18,
+          interactive: false,
+        }).addTo(marks);
+      }
+    }
+    if (current.layers.nowcast) {
+      for (const area of current.areas) {
+        const icon = L.divIcon({
+          className: "wx-icon",
+          html: `<span class="wx-glyph" title="${esc(area.name)}: ${esc(area.forecast)}">${glyph(area.forecast)}</span>`,
+          iconSize: [22, 22],
+          iconAnchor: [11, 11],
+        });
+        L.marker([area.lat, area.lon], { icon, interactive: false, keyboard: false }).addTo(marks);
+      }
+    }
+    if (current.layers.wind) {
+      for (const station of current.stations) {
+        if (station.windFromDeg == null) continue;
+        const toward = (station.windFromDeg + 180) % 360;
+        const icon = L.divIcon({
+          className: "wx-icon",
+          html: `<span class="wind-glyph" style="transform:rotate(${toward}deg)" title="${esc(station.name)}"></span>`,
+          iconSize: [16, 16],
+          iconAnchor: [8, 8],
+        });
+        L.marker([station.lat, station.lon], { icon, zIndexOffset: 400, title: station.name })
+          .on("click", () => current.onSelect(station))
+          .addTo(marks);
+      }
+    }
+  }
 }

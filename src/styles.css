@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "leaflet/dist/leaflet.css";
 
 @theme {
   --font-display: "Syne", "Outfit", sans-serif;
@@ -113,6 +114,74 @@
     min-width: 0;
     overflow: auto;
   }
+}
+
+.leaflet-container {
+  height: 100%;
+  width: 100%;
+  background: var(--color-bg);
+  font-family: var(--font-body);
+}
+
+.area-tip {
+  background: var(--color-surface);
+  color: var(--color-fg);
+  border: 1px solid var(--color-line);
+  border-radius: 8px;
+  box-shadow: none;
+  padding: 0.45rem 0.6rem;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.area-tip .area-name {
+  font-family: var(--font-display);
+  font-size: 14px;
+}
+
+.area-tip .area-wx {
+  font-size: 13px;
+}
+
+.leaflet-tooltip-top.area-tip::before {
+  border-top-color: var(--color-line);
+}
+
+.leaflet-tooltip-bottom.area-tip::before {
+  border-bottom-color: var(--color-line);
+}
+
+.wx-icon {
+  background: transparent;
+  border: 0;
+}
+
+.wx-glyph {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-bg) 80%, transparent);
+  border: 1px solid var(--color-line);
+}
+
+.wind-glyph {
+  display: block;
+  width: 16px;
+  height: 16px;
+  background: var(--color-primary);
+  clip-path: polygon(50% 0, 72% 72%, 50% 54%, 28% 72%);
+}
+
+.map-pane .leaflet-control-attribution {
+  background: color-mix(in srgb, var(--color-bg) 84%, transparent);
+  color: var(--color-muted);
+  font-size: 10px;
+}
+
+.map-pane .leaflet-control-attribution a {
+  color: var(--color-muted);
 }
 
 .scanlines {

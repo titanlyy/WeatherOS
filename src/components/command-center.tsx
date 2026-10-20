@@ -188,6 +188,7 @@ export function CommandCenter() {
             theme={theme}
             layers={layers}
             focus={focus}
+            validText={briefing?.nowcast?.validText ?? null}
             onSelect={setSelected}
           />
           {selected ? (
@@ -243,8 +244,8 @@ export function CommandCenter() {
           {!briefing?.outlook.length && !loading ? <p className="text-sm text-muted">Outlook not in this pull.</p> : null}
         </div>
         <p className="mt-3 text-xs text-muted">
-          Readings from the National Environment Agency via data.gov.sg, Singapore Open Data Licence. Coastline © OpenStreetMap
-          contributors. Not an official NEA site.
+          Readings from the National Environment Agency via data.gov.sg. Map © OpenStreetMap contributors and CARTO. Planning
+          areas © Urban Redevelopment Authority, Master Plan 2019. Singapore Open Data Licence. Not an official NEA site.
         </p>
       </section>
     </div>
