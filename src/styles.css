@@ -91,6 +91,21 @@
   border-radius: var(--radius);
 }
 
+.sub-worst {
+  background: color-mix(in srgb, var(--color-unhealthy) 22%, var(--color-surface-2));
+  box-shadow: inset 3px 0 0 var(--color-unhealthy);
+}
+
+.sub-worst > span:first-child {
+  color: var(--color-unhealthy);
+}
+
+[data-theme="cyber"] .sub-worst {
+  box-shadow:
+    inset 3px 0 0 var(--color-unhealthy),
+    0 0 16px color-mix(in srgb, var(--color-unhealthy) 45%, transparent);
+}
+
 .nowcast-list {
   max-height: 18rem;
   overflow: auto;

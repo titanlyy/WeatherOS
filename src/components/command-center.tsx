@@ -434,7 +434,7 @@ function SubIndices({ regions, worstId }: { regions: Region[]; worstId: string |
   return (
     <div className="sub-block mt-2 border-t border-line pt-2">
       <h2 className="font-display text-xs tracking-wide">Sub-indices</h2>
-      <p className="text-[10px] leading-snug text-muted">All five regions. A region's PSI is the highest of these.</p>
+      <p className="text-[10px] leading-snug text-muted">A sub-index scores one pollutant on the PSI scale. The region's PSI is the highest of these six.</p>
       <div className="mt-1.5 grid grid-cols-[3.4rem_repeat(6,minmax(0,1fr))] gap-x-1 text-[11px] text-muted">
         <span />
         {cols.map(([label, , help]) => (
@@ -447,7 +447,7 @@ function SubIndices({ regions, worstId }: { regions: Region[]; worstId: string |
         {regions.map((region) => (
           <div
             key={region.id}
-            className={`grid grid-cols-[3.4rem_repeat(6,minmax(0,1fr))] items-baseline gap-x-1 rounded px-0.5 text-[11px] ${region.id === worstId ? "bg-bg" : ""}`}
+            className={`grid grid-cols-[3.4rem_repeat(6,minmax(0,1fr))] items-baseline gap-x-1 rounded px-1.5 py-1 text-[11px] ${region.id === worstId ? "sub-worst" : ""}`}
           >
             <span className="truncate">{title(region.id)}</span>
             {cols.map(([label, key]) => {
