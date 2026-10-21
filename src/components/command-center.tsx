@@ -434,7 +434,7 @@ function SubIndices({ regions, worstId }: { regions: Region[]; worstId: string |
   return (
     <div className="sub-block mt-2 border-t border-line pt-2">
       <h2 className="font-display text-xs tracking-wide">Sub-indices</h2>
-      <p className="text-[10px] leading-snug text-muted">A sub-index scores one pollutant on the PSI scale. Highlighted region's PSI is the highest of these six.</p>
+      <p className="text-[10px] leading-snug text-muted">A sub-index scores one pollutant on the PSI scale. Highlighted region's PSI is the highest.</p>
       <div className="mt-1.5 grid grid-cols-[3.4rem_repeat(6,minmax(0,1fr))] gap-x-1 text-[11px] text-muted">
         <span />
         {cols.map(([label, , help]) => (
