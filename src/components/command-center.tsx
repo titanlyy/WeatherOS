@@ -52,24 +52,26 @@ export function CommandCenter() {
 
   useEffect(() => {
     let stop = false;
+    let timer = 0;
     const load = async () => {
       try {
         const data = await getBriefing();
         if (stop) return;
         setBriefing(data);
-        setError(data.failed ? "NEA feeds did not answer. Retrying on the next cycle." : null);
+        setError(data.failed ? "NEA feeds did not answer. Retrying." : null);
+        timer = window.setTimeout(() => void load(), data.partial || data.failed ? 4_000 : REFRESH_MS);
       } catch (err) {
         if (stop) return;
         setError(err instanceof Error ? err.message : "Could not reach the briefing service.");
+        timer = window.setTimeout(() => void load(), 8_000);
       } finally {
         if (!stop) setLoading(false);
       }
     };
     void load();
-    const id = window.setInterval(() => void load(), REFRESH_MS);
     return () => {
       stop = true;
-      window.clearInterval(id);
+      window.clearTimeout(timer);
     };
   }, []);
 
@@ -94,7 +96,7 @@ export function CommandCenter() {
         <p className="font-body text-sm text-primary tabular-nums sm:ml-4">{now ? formatClock(now) : "--:--:--"} SGT</p>
         <p className="text-xs text-muted">
           {briefing ? `Updated ${formatStamp(briefing.fetchedAt)}` : loading ? "Acquiring NEA feeds" : "No briefing"}
-          {briefing?.partial ? " · partial" : ""}
+          {briefing?.partial ? " · forecasts landing" : ""}
         </p>
         <div className="ml-auto flex items-center gap-2">
           <button

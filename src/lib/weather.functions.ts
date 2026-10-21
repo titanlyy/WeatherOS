@@ -4,52 +4,64 @@ import type { AreaNow, Briefing, DayOutlook, PeriodOutlook, Region, Station } fr
 const BASE = "https://api-open.data.gov.sg/v2/real-time/api";
 const UA = "WeatherOS/1.0 (+https://github.com/titanlyy/WeatherOS)";
 const TTL_MS = 75_000;
+const WINDOW_MS = 10_200;
 
-type Feed = Record<string, unknown> | null;
-
-let cache: { at: number; data: Briefing } | null = null;
-
-const PATHS = [
-  "psi",
-  "pm25",
+const FAST = [
   "air-temperature",
-  "rainfall",
   "relative-humidity",
   "wind-direction",
   "wind-speed",
+  "psi",
   "two-hr-forecast",
-  "twenty-four-hr-forecast",
-  "four-day-outlook",
-  "uv",
 ] as const;
+
+const REST = ["rainfall", "pm25", "twenty-four-hr-forecast", "four-day-outlook", "uv"] as const;
+
+type Feed = Record<string, unknown> | null;
+type Feeds = Record<string, Feed>;
+
+let cache: { at: number; partial: boolean; data: Briefing; feeds: Feeds } | null = null;
+let fastFlight: Promise<Briefing> | null = null;
+let restFlight: Promise<void> | null = null;
+let waveAt = 0;
+let filledAt = 0;
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function fetchFeed(path: string): Promise<Feed> {
+async function fetchFeed(path: string, waitOnLimit: boolean): Promise<Feed> {
   const url = `${BASE}/${path}`;
-  for (let attempt = 0; attempt < 3; attempt += 1) {
+  const tries = waitOnLimit ? 2 : 1;
+  for (let attempt = 0; attempt < tries; attempt += 1) {
     try {
       const res = await fetch(url, {
         headers: { Accept: "application/json", "User-Agent": UA },
       });
       if (res.status === 429) {
-        await sleep(11_000);
+        if (attempt + 1 >= tries) return null;
+        await sleep(WINDOW_MS);
         continue;
       }
       if (!res.ok) return null;
       const json = (await res.json()) as { code?: number; name?: string; data?: unknown };
       if (json.name === "TOO_MANY_REQUESTS" || (json.code && json.code !== 0 && json.data == null)) {
-        await sleep(11_000);
+        if (attempt + 1 >= tries) return null;
+        await sleep(WINDOW_MS);
         continue;
       }
       return (json.data ?? null) as Feed;
     } catch {
-      await sleep(800);
+      if (attempt + 1 >= tries) return null;
+      await sleep(400);
     }
   }
   return null;
+}
+
+async function wave(paths: readonly string[], feeds: Feeds, waitOnLimit: boolean) {
+  const rows = await Promise.all(paths.map(async (path) => [path, await fetchFeed(path, waitOnLimit)] as const));
+  for (const [path, data] of rows) feeds[path] = data;
 }
 
 type StationRow = {
@@ -290,19 +302,8 @@ function buildUv(feed: Feed): Briefing["uv"] {
   return { value, hour: typeof first?.hour === "string" ? first.hour : "" };
 }
 
-async function loadBriefing(): Promise<Briefing> {
-  const feeds: Record<string, Feed> = {};
-  const missing: string[] = [];
-  const wave = async (paths: readonly string[]) => {
-    const rows = await Promise.all(paths.map(async (path) => [path, await fetchFeed(path)] as const));
-    for (const [path, data] of rows) {
-      feeds[path] = data;
-      if (!data) missing.push(path);
-    }
-  };
-  await wave(PATHS.slice(0, 5));
-  await sleep(10_500);
-  await wave(PATHS.slice(5));
+function assemble(feeds: Feeds): Briefing {
+  const missing = [...FAST, ...REST].filter((path) => !feeds[path]);
   const { regions, psiUpdated, pmUpdated } = buildRegions(feeds.psi ?? null, feeds.pm25 ?? null);
   const stations = buildStations(feeds);
   const failed = stations.length === 0 && regions.length === 0;
@@ -321,9 +322,49 @@ async function loadBriefing(): Promise<Briefing> {
   };
 }
 
+async function fillRest() {
+  if (restFlight) return restFlight;
+  if (cache && !cache.partial && Date.now() - cache.at < TTL_MS) return;
+  if (Date.now() - filledAt < WINDOW_MS) return;
+  restFlight = (async () => {
+    const wait = Math.max(0, WINDOW_MS - (Date.now() - waveAt));
+    if (wait) await sleep(wait);
+    const feeds: Feeds = { ...(cache?.feeds ?? {}) };
+    const missing = [...FAST, ...REST].filter((path) => !feeds[path]);
+    if (missing.length) await wave(missing, feeds, true);
+    const data = assemble(feeds);
+    filledAt = Date.now();
+    waveAt = filledAt;
+    if (!data.failed) cache = { at: filledAt, partial: data.partial, data, feeds };
+  })().finally(() => {
+    restFlight = null;
+  });
+  return restFlight;
+}
+
+async function loadFast(): Promise<Briefing> {
+  if (fastFlight) return fastFlight;
+  fastFlight = (async () => {
+    const feeds: Feeds = {};
+    await wave(FAST, feeds, false);
+    waveAt = Date.now();
+    const data = assemble(feeds);
+    if (!data.failed) cache = { at: Date.now(), partial: data.partial, data, feeds };
+    void fillRest();
+    return data;
+  })().finally(() => {
+    fastFlight = null;
+  });
+  return fastFlight;
+}
+
 export const getBriefing = createServerFn({ method: "GET" }).handler(async () => {
-  if (cache && Date.now() - cache.at < TTL_MS) return cache.data;
-  const data = await loadBriefing();
-  if (!data.failed) cache = { at: Date.now(), data };
-  return data;
+  if (cache && !cache.partial && Date.now() - cache.at < TTL_MS) return cache.data;
+  if (cache && (cache.data.stations.length > 0 || cache.data.regions.length > 0)) {
+    void fillRest();
+    return cache.data;
+  }
+  return loadFast();
 });
+
+if (typeof window === "undefined") void loadFast();
