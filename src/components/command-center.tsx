@@ -524,18 +524,20 @@ function Nowcast({ briefing, onFocus }: { briefing: Briefing | null; onFocus: (l
   const counts = new Map<string, number>();
   for (const area of areas) counts.set(area.forecast, (counts.get(area.forecast) ?? 0) + 1);
   const statuses = [...counts.keys()].sort((a, b) => wxRank(a) - wxRank(b) || a.localeCompare(b));
+  const wet = statuses.filter((label) => {
+    const kind = fxClass(label);
+    return kind === "wx-storm" || kind === "wx-rain";
+  });
   const [picked, setPicked] = useState<string[] | null>(null);
-  const active = picked == null ? statuses : picked.filter((label) => counts.has(label));
-  const allOn = active.length === 0 || statuses.every((label) => active.includes(label));
-  const shown = allOn ? areas : areas.filter((area) => active.includes(area.forecast));
+  const active = (picked == null ? wet : picked.filter((label) => counts.has(label)));
+  const shown = areas.filter((area) => active.includes(area.forecast));
 
   function toggle(label: string) {
     setPicked((current) => {
-      const on = current == null ? statuses : current.filter((item) => counts.has(item));
-      const every = statuses.every((item) => on.includes(item));
-      if (every) return [label];
+      const on = current == null ? wet : current.filter((item) => counts.has(item));
       const next = on.includes(label) ? on.filter((item) => item !== label) : [...on, label];
-      if (next.length === 0 || next.length === statuses.length) return null;
+      const wetOnly = wet.length > 0 && next.length === wet.length && wet.every((item) => next.includes(item));
+      if (next.length === 0 || wetOnly) return null;
       return next;
     });
   }
@@ -546,7 +548,7 @@ function Nowcast({ briefing, onFocus }: { briefing: Briefing | null; onFocus: (l
       <p className="text-xs text-muted">{briefing?.nowcast?.validText ?? "Area forecast"}</p>
       <div className="mt-2 flex flex-wrap gap-1">
         {statuses.map((label) => {
-          const on = allOn || active.includes(label);
+          const on = active.includes(label);
           return (
             <button
               key={label}
@@ -569,7 +571,11 @@ function Nowcast({ briefing, onFocus }: { briefing: Briefing | null; onFocus: (l
             </button>
           </li>
         ))}
-        {!shown.length ? <li className="px-1 py-2 text-sm text-muted">No areas in this nowcast yet.</li> : null}
+        {!shown.length ? (
+          <li className="px-1 py-2 text-sm text-muted">
+            {areas.length ? "No showers in this window." : "No areas in this nowcast yet."}
+          </li>
+        ) : null}
       </ul>
     </section>
   );
