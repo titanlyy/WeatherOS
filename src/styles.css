@@ -213,6 +213,14 @@
 .wx-rain { color: #3db7ff; }
 .wx-cloud { color: #8fd3ff; }
 .wx-fair { color: #f5c542; }
+.wx-haze { color: #e0a36a; }
+
+.chip-on.wx-storm { border-color: #ff4d8d; background: color-mix(in srgb, #ff4d8d 18%, transparent); }
+.chip-on.wx-rain { border-color: #3db7ff; background: color-mix(in srgb, #3db7ff 18%, transparent); }
+.chip-on.wx-cloud { border-color: #8fd3ff; background: color-mix(in srgb, #8fd3ff 16%, transparent); }
+.chip-on.wx-fair { border-color: #f5c542; background: color-mix(in srgb, #f5c542 18%, transparent); }
+.chip-on.wx-haze { border-color: #e0a36a; background: color-mix(in srgb, #e0a36a 18%, transparent); }
+.chip-off { border-color: var(--color-line); opacity: 0.4; }
 
 .band-good { color: var(--color-good); }
 .band-moderate { color: var(--color-moderate); }
@@ -252,7 +260,12 @@
 [data-theme="cyber"] .outlook .wx-cloud,
 [data-theme="cyber"] .outlook .wx-fair,
 [data-theme="cyber"] .outlook .fig-temp,
-[data-theme="cyber"] .outlook .fig-wind {
+[data-theme="cyber"] .outlook .fig-wind,
+[data-theme="cyber"] .nowcast-col .wx-storm,
+[data-theme="cyber"] .nowcast-col .wx-rain,
+[data-theme="cyber"] .nowcast-col .wx-cloud,
+[data-theme="cyber"] .nowcast-col .wx-fair,
+[data-theme="cyber"] .nowcast-col .wx-haze {
   text-shadow: 0 0 10px color-mix(in srgb, currentColor 55%, transparent);
 }
 
@@ -261,6 +274,7 @@
 [data-theme="solar"] .wx-cloud { color: #3d6d86; }
 [data-theme="solar"] .wx-fair,
 [data-theme="solar"] .fig-temp { color: #a07a12; }
+[data-theme="solar"] .wx-haze { color: #8a5a32; }
 [data-theme="solar"] .fig-rain { color: #1a6fbf; }
 [data-theme="solar"] .edge-storm { border-left-color: #c45c26; }
 [data-theme="solar"] .edge-rain { border-left-color: #1a6fbf; }

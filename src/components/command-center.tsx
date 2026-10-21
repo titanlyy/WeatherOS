@@ -523,26 +523,53 @@ function Nowcast({ briefing, onFocus }: { briefing: Briefing | null; onFocus: (l
   const areas = briefing?.nowcast?.areas ?? [];
   const counts = new Map<string, number>();
   for (const area of areas) counts.set(area.forecast, (counts.get(area.forecast) ?? 0) + 1);
+  const statuses = [...counts.keys()].sort((a, b) => wxRank(a) - wxRank(b) || a.localeCompare(b));
+  const [picked, setPicked] = useState<string[] | null>(null);
+  const active = picked == null ? statuses : picked.filter((label) => counts.has(label));
+  const allOn = active.length === 0 || statuses.every((label) => active.includes(label));
+  const shown = allOn ? areas : areas.filter((area) => active.includes(area.forecast));
+
+  function toggle(label: string) {
+    setPicked((current) => {
+      const on = current == null ? statuses : current.filter((item) => counts.has(item));
+      const every = statuses.every((item) => on.includes(item));
+      if (every) return [label];
+      const next = on.includes(label) ? on.filter((item) => item !== label) : [...on, label];
+      if (next.length === 0 || next.length === statuses.length) return null;
+      return next;
+    });
+  }
+
   return (
-    <section className="panel p-3">
+    <section className="panel flex flex-col p-3">
       <h2 className="font-display text-sm tracking-wide">2-hour nowcast</h2>
       <p className="text-xs text-muted">{briefing?.nowcast?.validText ?? "Area forecast"}</p>
       <div className="mt-2 flex flex-wrap gap-1">
-        {[...counts.entries()].map(([label, count]) => (
-          <span key={label} className={`rounded-md border border-line px-2 py-1 text-xs ${fxClass(label)}`}>
-            {label} · {count}
-          </span>
-        ))}
+        {statuses.map((label) => {
+          const on = allOn || active.includes(label);
+          return (
+            <button
+              key={label}
+              type="button"
+              aria-pressed={on}
+              className={`min-h-9 rounded-md border px-2 py-1 text-xs ${fxClass(label)} ${on ? "chip-on" : "chip-off"}`}
+              onClick={() => toggle(label)}
+            >
+              {label} · {counts.get(label)}
+            </button>
+          );
+        })}
       </div>
       <ul className="nowcast-list mt-2 space-y-0.5">
-        {areas.map((area) => (
+        {shown.map((area) => (
           <li key={area.name}>
             <button type="button" className="flex min-h-11 w-full items-center justify-between gap-2 text-left text-sm" onClick={() => onFocus(area.lon, area.lat)}>
-              <span className="min-w-0 truncate">{area.name}</span>
+              <span className={`min-w-0 truncate ${fxClass(area.forecast)}`}>{area.name}</span>
               <span className={`shrink-0 text-right text-xs ${fxClass(area.forecast)}`}>{area.forecast}</span>
             </button>
           </li>
         ))}
+        {!shown.length ? <li className="px-1 py-2 text-sm text-muted">No areas in this nowcast yet.</li> : null}
       </ul>
     </section>
   );
@@ -636,10 +663,21 @@ function uvBand(value: number) {
 
 function fxClass(text: string) {
   const tone = forecastTone(text);
+  const lower = text.toLowerCase();
   if (tone === "storm") return "wx-storm";
   if (tone === "wet") return "wx-rain";
-  if (text.toLowerCase().includes("cloud")) return "wx-cloud";
+  if (lower.includes("haz") || lower.includes("mist") || lower.includes("fog")) return "wx-haze";
+  if (lower.includes("cloud")) return "wx-cloud";
   return "wx-fair";
+}
+
+function wxRank(text: string) {
+  const kind = fxClass(text);
+  if (kind === "wx-storm") return 0;
+  if (kind === "wx-rain") return 1;
+  if (kind === "wx-cloud") return 2;
+  if (kind === "wx-haze") return 3;
+  return 4;
 }
 
 function periodTone(regions: { text: string }[]) {
