@@ -10,6 +10,7 @@ import {
   formatStamp,
   knotsToKmh,
   mean,
+  pmKey,
   pmLabel,
   psiKey,
   psiLabel,
@@ -159,13 +160,13 @@ export function CommandCenter() {
                       <span className="text-sm">{title(region.id)}</span>
                     </span>
                     <span className="grid grid-cols-2 gap-x-3 pl-4">
-                      <span className="truncate text-sm tabular-nums">
+                      <span className={`truncate text-sm tabular-nums ${region.psi == null ? "text-muted" : toneClass(psiKey(region.psi))}`}>
                         {region.psi == null ? "—" : Math.round(region.psi)}{" "}
-                        <span className="text-[10px] text-muted">{region.psi == null ? "" : psiLabel(region.psi)}</span>
+                        <span className="text-[10px]">{region.psi == null ? "" : psiLabel(region.psi)}</span>
                       </span>
-                      <span className="truncate text-sm tabular-nums">
+                      <span className={`truncate text-sm tabular-nums ${region.pm25h == null ? "text-muted" : toneClass(pmKey(region.pm25h))}`}>
                         {region.pm25h == null ? "—" : Math.round(region.pm25h)}{" "}
-                        <span className="text-[10px] text-muted">{region.pm25h == null ? "" : pmLabel(region.pm25h)}</span>
+                        <span className="text-[10px]">{region.pm25h == null ? "" : pmLabel(region.pm25h)}</span>
                       </span>
                     </span>
                   </button>
@@ -321,7 +322,7 @@ function SubIndices({ regions, worstId }: { regions: Region[]; worstId: string |
             {cols.map(([label, key]) => {
               const value = region[key];
               return (
-                <span key={label} className={`text-center tabular-nums ${value != null && value > 100 ? "text-unhealthy" : ""}`}>
+                <span key={label} className={`text-center tabular-nums ${value == null ? "" : toneClass(psiKey(value))}`}>
                   {value == null ? "—" : Math.round(value)}
                 </span>
               );
@@ -504,9 +505,10 @@ function uvBand(value: number) {
 
 function fxClass(text: string) {
   const tone = forecastTone(text);
-  if (tone === "storm") return "fx-storm";
-  if (tone === "wet") return "fx-wet";
-  return "fx-calm";
+  if (tone === "storm") return "wx-storm";
+  if (tone === "wet") return "wx-rain";
+  if (text.toLowerCase().includes("cloud")) return "wx-cloud";
+  return "wx-fair";
 }
 
 function periodTone(regions: { text: string }[]) {

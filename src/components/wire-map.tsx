@@ -3,7 +3,7 @@ import type { GeoJSON as GeoLayer, LayerGroup, Map as LeafletMap, Path, TileLaye
 import type { Feature, FeatureCollection, GeoJsonObject } from "geojson";
 import planning from "@/lib/planning-areas.json";
 import type { AreaNow, Region, Station, ThemeId } from "@/lib/weather-model";
-import { forecastTone, knotsToKmh, pmLabel, psiKey, psiLabel, round1 } from "@/lib/weather-model";
+import { forecastTone, knotsToKmh, pmKey, pmLabel, psiKey, psiLabel, round1 } from "@/lib/weather-model";
 
 type Layers = { wind: boolean; rain: boolean; haze: boolean; nowcast: boolean };
 
@@ -97,15 +97,15 @@ function wxKind(forecast: string): "sun" | "part" | "cloud" | "rain" | "storm" {
 
 function wxFill(forecast: string): string {
   const kind = wxKind(forecast);
-  if (kind === "storm") return "#e25b4a";
-  if (kind === "rain") return "#3b82f6";
-  if (kind === "cloud" || kind === "part") return "#8aa0ad";
-  return "#e6b325";
+  if (kind === "storm") return "#ff4d8d";
+  if (kind === "rain") return "#3db7ff";
+  if (kind === "cloud" || kind === "part") return "#8fd3ff";
+  return "#f5c542";
 }
 
 function glyph(forecast: string): string {
   const kind = wxKind(forecast);
-  const fill = kind === "storm" ? "#e25b4a" : kind === "rain" ? "#3b82f6" : "#d7e2ea";
+  const fill = kind === "storm" ? "#ff4d8d" : kind === "rain" ? "#3db7ff" : kind === "sun" ? "#f5c542" : "#8fd3ff";
   const sun = `<circle cx="7" cy="7" r="3" fill="#f0c14a"/>`;
   const cloud = `<path fill="${fill}" d="M8 16h8.2a3.2 3.2 0 0 0 .4-6.4 4.2 4.2 0 0 0-8-1 3 3 0 0 0-.6 7.4z"/>`;
   const drops = `<path stroke="#7eb6ff" stroke-width="1.4" stroke-linecap="round" d="M9 17.5v2M13 17.5v2M17 17.5v2"/>`;
@@ -114,28 +114,52 @@ function glyph(forecast: string): string {
   return `<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">${body}</svg>`;
 }
 
+function wxClass(forecast: string) {
+  const kind = wxKind(forecast);
+  if (kind === "storm") return "wx-storm";
+  if (kind === "rain") return "wx-rain";
+  if (kind === "sun") return "wx-fair";
+  return "wx-cloud";
+}
+
+function bandClass(key: string) {
+  if (key === "good" || key === "normal") return "band-good";
+  if (key === "moderate" || key === "elevated") return "band-moderate";
+  if (key === "unhealthy" || key === "high") return "band-unhealthy";
+  if (key === "very" || key === "very-high") return "band-very";
+  return "band-hazard";
+}
 function tipHtml(props: AreaProps, areas: AreaNow[], regions: Region[], stations: Station[], validText: string | null) {
   const forecast = matchForecast(props.name, props.lat, props.lon, areas);
   const region = nearest(props.lat, props.lon, regions);
   const station = nearest(props.lat, props.lon, stations, 0.0016);
   const lines = [`<p class="area-name">${esc(props.name)}</p>`];
   if (forecast) {
-    lines.push(`<p class="area-wx">${esc(forecast.forecast)}</p>`);
-    if (forecast.name.toLowerCase() !== props.name.toLowerCase()) lines.push(`<p>NEA area \u00b7 ${esc(forecast.name)}</p>`);
+    lines.push(`<p class="area-wx ${wxClass(forecast.forecast)}">${esc(forecast.forecast)}</p>`);
+    if (forecast.name.toLowerCase() !== props.name.toLowerCase()) {
+      lines.push(`<p class="tip-meta"><span class="tip-k">NEA area</span> ${esc(forecast.name)}</p>`);
+    }
   } else {
-    lines.push(`<p>No 2-hour forecast yet</p>`);
+    lines.push(`<p class="tip-meta">No 2-hour forecast yet</p>`);
   }
-  if (validText) lines.push(`<p>2-hour \u00b7 ${esc(validText)}</p>`);
+  if (validText) lines.push(`<p class="tip-meta"><span class="tip-k">2-hour</span> ${esc(validText)}</p>`);
   if (region) {
-    const psi = region.psi == null ? "\u2014" : `${Math.round(region.psi)} ${psiLabel(region.psi)}`;
-    const pm = region.pm25h == null ? "\u2014" : `${Math.round(region.pm25h)} ${pmLabel(region.pm25h)}`;
     const regionName = region.id.charAt(0).toUpperCase() + region.id.slice(1);
-    lines.push(`<p>${esc(regionName)} PSI ${esc(psi)} \u00b7 PM2.5 ${esc(pm)}</p>`);
+    const psi =
+      region.psi == null
+        ? `<span class="tip-k">\u2014</span>`
+        : `<span class="${bandClass(psiKey(region.psi))}">${Math.round(region.psi)} ${esc(psiLabel(region.psi))}</span>`;
+    const pm =
+      region.pm25h == null
+        ? `<span class="tip-k">\u2014</span>`
+        : `<span class="${bandClass(pmKey(region.pm25h))}">${Math.round(region.pm25h)} ${esc(pmLabel(region.pm25h))}</span>`;
+    lines.push(`<p><span class="tip-k">${esc(regionName)} PSI</span> ${psi} <span class="tip-k">PM2.5</span> ${pm}</p>`);
   }
   if (station) {
-    const temp = station.tempC == null ? "\u2014" : `${round1(station.tempC)}\u00b0C`;
-    const rain = station.rainMm == null ? "\u2014" : `${round1(station.rainMm)} mm`;
-    lines.push(`<p>Nearest station ${esc(station.name)} \u00b7 ${esc(temp)} \u00b7 rain ${esc(rain)}</p>`);
+    const temp = station.tempC == null ? `<span class="tip-k">\u2014</span>` : `<span class="fig-temp">${round1(station.tempC)}\u00b0C</span>`;
+    const wet = (station.rainMm ?? 0) > 0;
+    const rain = station.rainMm == null ? `<span class="tip-k">\u2014</span>` : `<span class="${wet ? "fig-rain" : "tip-k"}">${round1(station.rainMm)} mm</span>`;
+    lines.push(`<p><span class="tip-k">Nearest station</span> ${esc(station.name)} ${temp} <span class="tip-k">rain</span> ${rain}</p>`);
   }
   return lines.join("");
 }

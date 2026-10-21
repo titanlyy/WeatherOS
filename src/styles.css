@@ -171,11 +171,57 @@
 .area-tip .area-name {
   font-family: var(--font-display);
   font-size: 14px;
+  color: var(--color-primary);
 }
 
 .area-tip .area-wx {
-  font-size: 13px;
+  font-family: var(--font-display);
+  font-size: 15px;
+  line-height: 1.2;
 }
+
+.area-tip .tip-k,
+.area-tip .tip-meta {
+  color: var(--color-muted);
+}
+
+.wx-storm { color: #ff4d8d; }
+.wx-rain { color: #3db7ff; }
+.wx-cloud { color: #8fd3ff; }
+.wx-fair { color: #f5c542; }
+
+.band-good { color: var(--color-good); }
+.band-moderate { color: var(--color-moderate); }
+.band-unhealthy { color: var(--color-unhealthy); }
+.band-very { color: var(--color-very); }
+.band-hazard { color: var(--color-hazard); }
+
+.fig-temp { color: #f5c542; }
+.fig-rain { color: #3db7ff; }
+
+[data-theme="cyber"] .area-tip .area-name,
+[data-theme="cyber"] .area-tip .area-wx,
+[data-theme="cyber"] .area-tip .band-good,
+[data-theme="cyber"] .area-tip .band-moderate,
+[data-theme="cyber"] .area-tip .band-unhealthy,
+[data-theme="cyber"] .area-tip .band-very,
+[data-theme="cyber"] .area-tip .band-hazard,
+[data-theme="cyber"] .area-tip .fig-temp,
+[data-theme="cyber"] .area-tip .fig-rain,
+[data-theme="cyber"] .region-list .text-good,
+[data-theme="cyber"] .region-list .text-moderate,
+[data-theme="cyber"] .region-list .text-unhealthy,
+[data-theme="cyber"] .region-list .text-very,
+[data-theme="cyber"] .region-list .text-hazard {
+  text-shadow: 0 0 10px color-mix(in srgb, currentColor 55%, transparent);
+}
+
+[data-theme="solar"] .wx-storm { color: #c45c26; }
+[data-theme="solar"] .wx-rain { color: #1a6fbf; }
+[data-theme="solar"] .wx-cloud { color: #3d6d86; }
+[data-theme="solar"] .wx-fair,
+[data-theme="solar"] .fig-temp { color: #a07a12; }
+[data-theme="solar"] .fig-rain { color: #1a6fbf; }
 
 .leaflet-tooltip-top.area-tip::before {
   border-top-color: var(--color-line);
