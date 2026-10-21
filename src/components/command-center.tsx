@@ -134,39 +134,47 @@ export function CommandCenter() {
       {error ? <p className="mx-4 mb-3 text-sm text-accent">{error}</p> : null}
 
       <div className="mid flex-1 px-3 pb-3 lg:px-4">
-        <aside className="side mb-3 min-w-0 space-y-3 lg:mb-0 lg:pr-3">
-          <section className="panel min-w-0 overflow-hidden p-3">
+        <aside className="side mb-3 min-w-0 lg:mb-0 lg:pr-3">
+          <section className="panel min-w-0 p-2.5">
             <h2 className="font-display text-sm tracking-wide">Regions</h2>
-            <p className="mb-2 text-xs text-muted">
-              <Tip label="PSI" text={PSI_TIP}>24h PSI</Tip>
-              {" · "}
-              <Tip label="PM2.5" text={PM_TIP}>1h PM2.5</Tip>
-            </p>
-            <ul className="space-y-2">
+            <div className="mt-1 grid grid-cols-[minmax(0,1fr)_auto_auto] gap-x-3 px-1.5 text-[10px] uppercase tracking-wide text-muted">
+              <span />
+              <Tip label="PSI" text={PSI_TIP}>
+                <span className="block text-left">24h PSI</span>
+              </Tip>
+              <Tip label="PM2.5" text={PM_TIP}>
+                <span className="block text-left">1h PM2.5</span>
+              </Tip>
+            </div>
+            <ul>
               {regions.map((region) => (
-                <li key={region.id} className="min-w-0">
+                <li key={region.id} className="min-w-0 border-b border-line last:border-b-0">
                   <button
                     type="button"
-                    className="grid w-full min-w-0 grid-cols-[0.65rem_minmax(0,1fr)_auto] items-center gap-x-2 gap-y-0.5 rounded-md border border-line bg-bg px-2 py-2 text-left"
+                    className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-3 px-1.5 py-1 text-left"
                     title={regionTitle(region)}
                     onClick={() => setFocus({ lon: region.lon, lat: region.lat, nonce: Date.now() })}
                   >
-                    <span className={`col-start-1 row-span-2 size-2.5 justify-self-center rounded-full ${dotClass(region)} ${(region.psi ?? 0) > 100 ? "pulse-dot" : ""}`} />
-                    <span className="truncate text-sm">{title(region.id)}</span>
-                    <span className="text-right text-lg leading-none tabular-nums">{region.psi == null ? "—" : Math.round(region.psi)}</span>
-                    <span className="truncate text-xs text-muted">{region.psi == null ? "" : psiLabel(region.psi)}</span>
-                    <span className="text-right text-xs leading-tight">
-                      <span className="block tabular-nums">{region.pm25h == null ? "—" : Math.round(region.pm25h)}</span>
-                      <span className="text-muted">{region.pm25h == null ? "" : pmLabel(region.pm25h)}</span>
+                    <span className="flex min-w-0 items-center gap-2">
+                      <span className={`size-2 shrink-0 rounded-full ${dotClass(region)} ${(region.psi ?? 0) > 100 ? "pulse-dot" : ""}`} />
+                      <span className="truncate text-sm">{title(region.id)}</span>
+                    </span>
+                    <span className="flex items-baseline justify-end gap-1">
+                      <span className="text-sm tabular-nums">{region.psi == null ? "—" : Math.round(region.psi)}</span>
+                      <span className="w-[4.6rem] text-left text-[10px] leading-none text-muted">{region.psi == null ? "" : psiLabel(region.psi)}</span>
+                    </span>
+                    <span className="flex items-baseline justify-end gap-1">
+                      <span className="text-sm tabular-nums">{region.pm25h == null ? "—" : Math.round(region.pm25h)}</span>
+                      <span className="w-14 whitespace-nowrap text-left text-[10px] leading-none text-muted">{region.pm25h == null ? "" : pmLabel(region.pm25h)}</span>
                     </span>
                   </button>
                 </li>
               ))}
-              {!regions.length ? <li className="text-sm text-muted">Region readings land with the first successful PSI pull.</li> : null}
+              {!regions.length ? <li className="px-1.5 py-2 text-sm text-muted">Region readings land with the first successful PSI pull.</li> : null}
             </ul>
+            {worst ? <Pollutants region={worst} /> : null}
+            <UvBlock briefing={briefing} />
           </section>
-          {worst ? <Pollutants region={worst} /> : null}
-          <UvBlock briefing={briefing} />
         </aside>
 
         <section className="map-pane panel overflow-hidden lg:mr-3">
@@ -240,7 +248,7 @@ export function CommandCenter() {
           <Wind className="size-4 text-primary" aria-hidden="true" />
           <h2 className="font-display text-sm tracking-wide">Four-day outlook</h2>
         </div>
-        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
           {(briefing?.outlook ?? []).map((day) => (
             <article key={day.date || day.day} className="panel p-3">
               <p className="text-xs text-muted">{day.day}</p>
@@ -283,19 +291,19 @@ function Stat({ k, v }: { k: string; v: string }) {
 
 function Pollutants({ region }: { region: Region }) {
   const rows = [
-    ["PM2.5 24h", region.pm25, PM25_SUB_TIP],
-    ["PM10 24h", region.pm10, PM10_TIP],
-    ["O₃ sub", region.o3, O3_TIP],
-    ["NO₂ 1h", region.no2, NO2_TIP],
-    ["SO₂ 24h", region.so2, SO2_TIP],
-    ["CO sub", region.co, CO_TIP],
+    ["PM2.5", region.pm25, PM25_SUB_TIP],
+    ["PM10", region.pm10, PM10_TIP],
+    ["O₃", region.o3, O3_TIP],
+    ["NO₂", region.no2, NO2_TIP],
+    ["SO₂", region.so2, SO2_TIP],
+    ["CO", region.co, CO_TIP],
   ] as const;
   return (
-    <section className="panel p-3">
-      <h2 className="font-display text-sm tracking-wide">Sub-indices · {title(region.id)}</h2>
-      <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-sm">
+    <div className="mt-1 border-t border-line pt-2">
+      <h2 className="font-display text-xs tracking-wide">Sub-indices · {title(region.id)}</h2>
+      <dl className="mt-1 grid grid-cols-3 gap-x-2 gap-y-0.5 text-xs">
         {rows.map(([label, value, help]) => (
-          <div key={label} className="flex items-center justify-between gap-2 border-b border-line py-1">
+          <div key={label} className="flex items-baseline justify-between gap-1">
             <dt className="text-muted">
               <Tip label={label} text={help}>{label}</Tip>
             </dt>
@@ -303,7 +311,7 @@ function Pollutants({ region }: { region: Region }) {
           </div>
         ))}
       </dl>
-    </section>
+    </div>
   );
 }
 
@@ -311,14 +319,13 @@ function UvBlock({ briefing }: { briefing: Briefing | null }) {
   const value = briefing?.uv?.value;
   const band = value == null ? null : uvBand(value);
   return (
-    <section className="panel p-3">
-      <h2 className="font-display text-sm tracking-wide">
-        <Tip label="UV index" text={UV_TIP}>UV index</Tip>
-      </h2>
-      <p className={`mt-1 font-display text-3xl ${band ? toneClass(band.tone) : ""}`}>{value ?? "—"}</p>
-      <p className="text-xs text-muted">{band ? band.effect : "Daylight hours only"}</p>
-      <p className="text-xs text-muted">{briefing?.uv ? `Hour ${formatStamp(briefing.uv.hour)}` : ""}</p>
-    </section>
+    <div className="mt-2 flex items-baseline gap-2 border-t border-line pt-2">
+      <Tip label="UV index" text={UV_TIP}>
+        <span className="text-xs text-muted">UV</span>
+      </Tip>
+      <p className={`font-display text-xl leading-none ${band ? toneClass(band.tone) : ""}`}>{value ?? "—"}</p>
+      <p className="min-w-0 text-xs leading-snug text-muted">{band ? band.effect : "Daylight hours only"}</p>
+    </div>
   );
 }
 
