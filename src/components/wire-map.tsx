@@ -273,7 +273,7 @@ export function WireMap({ stations, regions, areas, theme, layers, focus, validT
   }, [focus]);
 
   return (
-    <div className={`absolute inset-0${theme === "cyber" ? " map-dark" : ""}`}>
+    <div className={`absolute inset-0 z-0${theme === "cyber" ? " map-dark" : ""}`}>
       <div ref={host} className="absolute inset-0" role="application" aria-label="Singapore map. Hover a planning area for the 2-hour forecast." />
       <p className="pointer-events-none absolute bottom-3 left-3 z-[500] panel px-2 py-1 text-xs text-muted">
         Hover an area \u00b7 {areas.filter((area) => forecastTone(area.forecast) !== "calm").length} areas with rain in the nowcast

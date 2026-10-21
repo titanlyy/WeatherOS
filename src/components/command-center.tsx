@@ -161,7 +161,7 @@ export function CommandCenter() {
         </aside>
 
         <section className="map-pane panel overflow-hidden lg:mr-3">
-          <div className="absolute left-3 top-3 z-10 flex flex-wrap gap-1">
+          <div className="absolute left-3 top-3 z-20 flex flex-wrap gap-1">
             {(
               [
                 ["wind", "Wind"],
@@ -192,7 +192,7 @@ export function CommandCenter() {
             onSelect={setSelected}
           />
           {selected ? (
-            <div className="absolute bottom-12 left-3 right-3 z-10 panel p-3 sm:right-auto sm:w-80">
+            <div className="absolute bottom-12 left-3 right-3 z-20 panel p-3 sm:right-auto sm:w-80">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="font-display text-base leading-tight">{selected.name}</p>
