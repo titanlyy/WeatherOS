@@ -91,6 +91,11 @@
   border-radius: var(--radius);
 }
 
+.nowcast-list {
+  max-height: 18rem;
+  overflow: auto;
+}
+
 @media (min-width: 1024px) {
   .desk {
     height: 100dvh;
@@ -100,7 +105,7 @@
   .mid {
     flex: 1;
     display: grid;
-    grid-template-columns: clamp(17rem, 20vw, 22rem) minmax(0, 1fr) minmax(18rem, 22rem);
+    grid-template-columns: clamp(17rem, 20vw, 22rem) minmax(0, 1fr) minmax(14rem, 17rem) minmax(16rem, 20rem);
     min-height: 0;
   }
 
@@ -143,6 +148,25 @@
     flex: 1;
     flex-direction: column;
     justify-content: space-evenly;
+  }
+
+  .nowcast-col {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .nowcast-col > .panel {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .nowcast-list {
+    flex: 1;
+    max-height: none;
+    min-height: 0;
+    overflow: auto;
   }
 }
 

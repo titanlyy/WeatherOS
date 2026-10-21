@@ -254,9 +254,12 @@ export function CommandCenter() {
           ) : null}
         </section>
 
-        <aside className="side mt-3 space-y-3 lg:mt-0">
-          <DayCard briefing={briefing} />
+        <aside className="side nowcast-col mt-3 min-w-0 lg:mt-0 lg:px-1.5">
           <Nowcast briefing={briefing} onFocus={(lon, lat) => setFocus({ lon, lat, nonce: Date.now() })} />
+        </aside>
+
+        <aside className="side mt-3 min-w-0 lg:mt-0 lg:pl-1.5">
+          <DayCard briefing={briefing} />
         </aside>
       </div>
 
@@ -526,17 +529,17 @@ function Nowcast({ briefing, onFocus }: { briefing: Briefing | null; onFocus: (l
       <p className="text-xs text-muted">{briefing?.nowcast?.validText ?? "Area forecast"}</p>
       <div className="mt-2 flex flex-wrap gap-1">
         {[...counts.entries()].map(([label, count]) => (
-          <span key={label} className="rounded-md border border-line px-2 py-1 text-xs">
+          <span key={label} className={`rounded-md border border-line px-2 py-1 text-xs ${fxClass(label)}`}>
             {label} · {count}
           </span>
         ))}
       </div>
-      <ul className="mt-3 max-h-64 space-y-1 overflow-auto">
+      <ul className="nowcast-list mt-2 space-y-0.5">
         {areas.map((area) => (
           <li key={area.name}>
-            <button type="button" className="flex min-h-11 w-full items-center justify-between gap-3 text-left text-sm" onClick={() => onFocus(area.lon, area.lat)}>
-              <span>{area.name}</span>
-              <span className="text-muted">{area.forecast}</span>
+            <button type="button" className="flex min-h-11 w-full items-center justify-between gap-2 text-left text-sm" onClick={() => onFocus(area.lon, area.lat)}>
+              <span className="min-w-0 truncate">{area.name}</span>
+              <span className={`shrink-0 text-right text-xs ${fxClass(area.forecast)}`}>{area.forecast}</span>
             </button>
           </li>
         ))}
