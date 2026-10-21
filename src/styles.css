@@ -188,6 +188,143 @@
   color: var(--color-muted);
 }
 
+[data-theme="cyber"] .desk {
+  background:
+    radial-gradient(ellipse at 8% -8%, color-mix(in srgb, var(--color-accent) 22%, transparent), transparent 36%),
+    radial-gradient(ellipse at 100% 0%, color-mix(in srgb, var(--color-primary) 16%, transparent), transparent 32%),
+    var(--color-bg);
+}
+
+[data-theme="cyber"] .panel {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--color-primary) 10%, transparent), transparent 46%),
+    var(--color-surface);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--color-primary) 28%, var(--color-line)),
+    0 0 22px color-mix(in srgb, var(--color-accent) 10%, transparent);
+}
+
+[data-theme="cyber"] .kpi .font-display {
+  text-shadow: 0 0 14px color-mix(in srgb, currentColor 65%, transparent);
+}
+
+[data-theme="cyber"] .mast {
+  position: relative;
+}
+
+[data-theme="cyber"] .mast::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--color-accent), var(--color-primary), transparent);
+  background-size: 200% 100%;
+  animation: sweep 7s linear infinite;
+}
+
+@keyframes sweep {
+  to {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes neon-pulse {
+  50% {
+    box-shadow:
+      0 0 0 1px var(--color-accent),
+      0 0 18px color-mix(in srgb, var(--color-accent) 55%, transparent);
+  }
+}
+
+[data-theme="cyber"] .hot {
+  animation: neon-pulse 2.6s ease-in-out infinite;
+}
+
+.fx-calm {
+  color: var(--color-fg);
+}
+
+.fx-wet {
+  color: #3db7ff;
+}
+
+.fx-storm {
+  color: var(--color-accent);
+}
+
+[data-theme="solar"] .fx-wet {
+  color: #1a6fbf;
+}
+
+.period {
+  border-left: 3px solid var(--color-line);
+  border-radius: 0.4rem;
+  background: var(--color-bg);
+  padding: 0.4rem 0.55rem;
+}
+
+.period-wet {
+  border-left-color: #3db7ff;
+}
+
+.period-storm {
+  border-left-color: var(--color-accent);
+}
+
+.stat-chip {
+  display: block;
+  border-radius: 0.4rem;
+  background: var(--color-bg);
+  padding: 0.35rem 0.3rem;
+  font-size: 11px;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+
+.tip-hit {
+  display: inline;
+  width: auto;
+  border: 0;
+  border-bottom: 1px dotted var(--color-primary);
+  background: transparent;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
+  min-height: 0;
+}
+
+.grid > .tip,
+.grid > .tip .tip-hit {
+  display: block;
+  width: 100%;
+}
+
+.tip-pop {
+  position: fixed;
+  z-index: 80;
+  width: min(18rem, calc(100vw - 1.5rem));
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--color-primary);
+  border-radius: 0.6rem;
+  background: var(--color-surface);
+  color: var(--color-fg);
+  font-size: 12px;
+  line-height: 1.45;
+  text-align: left;
+  pointer-events: none;
+  box-shadow: 0 12px 32px color-mix(in srgb, #000 50%, transparent);
+}
+
+.tip-label {
+  display: block;
+  margin-bottom: 0.2rem;
+  font-family: var(--font-display);
+  color: var(--color-primary);
+}
+
 .scanlines {
   pointer-events: none;
   position: absolute;
@@ -207,7 +344,9 @@
 
 @media (prefers-reduced-motion: reduce) {
   .flow,
-  .pulse-dot {
+  .pulse-dot,
+  .hot,
+  .mast::after {
     animation: none !important;
   }
 }

@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { CloudSun, Leaf, Radio, Wind } from "lucide-react";
 import { getBriefing } from "@/lib/weather.functions";
 import type { Briefing, Region, Station, ThemeId } from "@/lib/weather-model";
 import {
   REGION_ORDER,
   compass,
+  forecastTone,
   formatClock,
   formatStamp,
   knotsToKmh,
@@ -81,7 +82,7 @@ export function CommandCenter() {
 
   return (
     <div className="desk bg-bg text-fg">
-      <header className="flex flex-wrap items-center gap-3 border-b border-line px-4 py-3">
+      <header className="mast flex flex-wrap items-center gap-3 border-b border-line px-4 py-3">
         <div className="flex items-center gap-2">
           <Radio className="size-5 text-primary" aria-hidden="true" />
           <div>
@@ -107,18 +108,21 @@ export function CommandCenter() {
       </header>
 
       <div className="grid grid-cols-2 gap-2 px-3 py-3 sm:grid-cols-4 lg:px-4">
-        <Kpi label="Air" value={avgTemp == null ? "—" : `${round1(avgTemp)}°`} note="station mean" />
-        <Kpi label="Humidity" value={avgHum == null ? "—" : `${Math.round(avgHum)}%`} note="station mean" />
+        <Kpi label="Air" value={avgTemp == null ? "—" : `${round1(avgTemp)}°`} note="station mean" tip={TEMP_TIP} />
+        <Kpi label="Humidity" value={avgHum == null ? "—" : `${Math.round(avgHum)}%`} note="station mean" tip={HUM_TIP} />
         <Kpi
           label="Wind"
           value={wind ? compass(wind.fromDeg) : "—"}
           note={wind ? `${round1(wind.kmh)} km/h mean, blowing from` : "awaiting stations"}
+          tip={WIND_TIP}
         />
         <Kpi
           label="Worst PSI"
           value={worst?.psi == null ? "—" : String(Math.round(worst.psi))}
-          note={worst ? `${title(worst.id)} · ${psiLabel(worst.psi ?? 0)}` : "24-hour"}
+          note={worst?.psi == null ? "24-hour" : `${title(worst.id)} · ${psiEffect(worst.psi)}`}
           tone={worst?.psi == null ? undefined : psiKey(worst.psi)}
+          tip={PSI_TIP}
+          hot={worst?.psi != null && worst.psi > 100}
         />
       </div>
 
@@ -133,16 +137,21 @@ export function CommandCenter() {
         <aside className="side mb-3 min-w-0 space-y-3 lg:mb-0 lg:pr-3">
           <section className="panel min-w-0 overflow-hidden p-3">
             <h2 className="font-display text-sm tracking-wide">Regions</h2>
-            <p className="mb-2 text-xs text-muted">24h PSI · 1h PM2.5 µg/m³</p>
+            <p className="mb-2 text-xs text-muted">
+              <Tip label="PSI" text={PSI_TIP}>24h PSI</Tip>
+              {" · "}
+              <Tip label="PM2.5" text={PM_TIP}>1h PM2.5</Tip>
+            </p>
             <ul className="space-y-2">
               {regions.map((region) => (
                 <li key={region.id} className="min-w-0">
                   <button
                     type="button"
                     className="grid w-full min-w-0 grid-cols-[0.65rem_minmax(0,1fr)_auto] items-center gap-x-2 gap-y-0.5 rounded-md border border-line bg-bg px-2 py-2 text-left"
+                    title={regionTitle(region)}
                     onClick={() => setFocus({ lon: region.lon, lat: region.lat, nonce: Date.now() })}
                   >
-                    <span className={`col-start-1 row-span-2 size-2.5 justify-self-center rounded-full ${dotClass(region)}`} />
+                    <span className={`col-start-1 row-span-2 size-2.5 justify-self-center rounded-full ${dotClass(region)} ${(region.psi ?? 0) > 100 ? "pulse-dot" : ""}`} />
                     <span className="truncate text-sm">{title(region.id)}</span>
                     <span className="text-right text-lg leading-none tabular-nums">{region.psi == null ? "—" : Math.round(region.psi)}</span>
                     <span className="truncate text-xs text-muted">{region.psi == null ? "" : psiLabel(region.psi)}</span>
@@ -164,15 +173,16 @@ export function CommandCenter() {
           <div className="absolute left-3 top-3 z-20 flex flex-wrap gap-1">
             {(
               [
-                ["wind", "Wind"],
-                ["rain", "Rain"],
-                ["haze", "Haze"],
-                ["nowcast", "Nowcast"],
+                ["wind", "Wind", "Arrows point where the wind is blowing. Click a station for its reading."],
+                ["rain", "Rain", "Rings mark stations that are reporting rain right now."],
+                ["haze", "Haze", "Tints each town by that region's 24-hour PSI."],
+                ["nowcast", "Nowcast", "Shows the next two hours: forecast colour and weather icons."],
               ] as const
-            ).map(([key, label]) => (
+            ).map(([key, label, help]) => (
               <button
                 key={key}
                 type="button"
+                title={help}
                 aria-pressed={layers[key]}
                 className={`min-h-11 rounded-md border px-3 text-xs ${layers[key] ? "border-primary bg-surface text-fg" : "border-line bg-bg text-muted"}`}
                 onClick={() => setLayers((prev) => ({ ...prev, [key]: !prev[key] }))}
@@ -244,7 +254,7 @@ export function CommandCenter() {
           {!briefing?.outlook.length && !loading ? <p className="text-sm text-muted">Outlook not in this pull.</p> : null}
         </div>
         <p className="mt-3 text-xs text-muted">
-          Readings from the National Environment Agency via data.gov.sg. Map © OpenStreetMap contributors and CARTO. Planning
+          Readings from the National Environment Agency via data.gov.sg. Map data © OpenStreetMap contributors. Planning
           areas © Urban Redevelopment Authority, Master Plan 2019. Singapore Open Data Licence. Not an official NEA site.
         </p>
       </section>
@@ -252,10 +262,10 @@ export function CommandCenter() {
   );
 }
 
-function Kpi({ label, value, note, tone }: { label: string; value: string; note: string; tone?: string }) {
+function Kpi({ label, value, note, tone, tip, hot }: { label: string; value: string; note: string; tone?: string; tip?: string; hot?: boolean }) {
   return (
-    <div className="panel px-3 py-2">
-      <p className="text-xs text-muted">{label}</p>
+    <div className={`panel kpi px-3 py-2 ${hot ? "hot" : ""}`}>
+      <p className="text-xs text-muted">{tip ? <Tip label={label} text={tip}>{label}</Tip> : label}</p>
       <p className={`font-display text-3xl leading-none ${toneClass(tone)}`}>{value}</p>
       <p className="mt-1 text-xs text-muted">{note}</p>
     </div>
@@ -273,21 +283,23 @@ function Stat({ k, v }: { k: string; v: string }) {
 
 function Pollutants({ region }: { region: Region }) {
   const rows = [
-    ["PM2.5 24h", region.pm25],
-    ["PM10 24h", region.pm10],
-    ["O₃ sub", region.o3],
-    ["NO₂ 1h", region.no2],
-    ["SO₂ 24h", region.so2],
-    ["CO sub", region.co],
+    ["PM2.5 24h", region.pm25, PM25_SUB_TIP],
+    ["PM10 24h", region.pm10, PM10_TIP],
+    ["O₃ sub", region.o3, O3_TIP],
+    ["NO₂ 1h", region.no2, NO2_TIP],
+    ["SO₂ 24h", region.so2, SO2_TIP],
+    ["CO sub", region.co, CO_TIP],
   ] as const;
   return (
     <section className="panel p-3">
       <h2 className="font-display text-sm tracking-wide">Sub-indices · {title(region.id)}</h2>
       <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-sm">
-        {rows.map(([label, value]) => (
-          <div key={label} className="flex justify-between gap-2 border-b border-line py-1">
-            <dt className="text-muted">{label}</dt>
-            <dd className="tabular-nums">{value == null ? "—" : Math.round(value)}</dd>
+        {rows.map(([label, value, help]) => (
+          <div key={label} className="flex items-center justify-between gap-2 border-b border-line py-1">
+            <dt className="text-muted">
+              <Tip label={label} text={help}>{label}</Tip>
+            </dt>
+            <dd className={`tabular-nums ${value != null && value > 100 ? "text-unhealthy" : ""}`}>{value == null ? "—" : Math.round(value)}</dd>
           </div>
         ))}
       </dl>
@@ -296,11 +308,16 @@ function Pollutants({ region }: { region: Region }) {
 }
 
 function UvBlock({ briefing }: { briefing: Briefing | null }) {
+  const value = briefing?.uv?.value;
+  const band = value == null ? null : uvBand(value);
   return (
     <section className="panel p-3">
-      <h2 className="font-display text-sm tracking-wide">UV index</h2>
-      <p className="mt-1 font-display text-3xl">{briefing?.uv ? briefing.uv.value : "—"}</p>
-      <p className="text-xs text-muted">{briefing?.uv ? `Hour ${formatStamp(briefing.uv.hour)}` : "Daylight hours only"}</p>
+      <h2 className="font-display text-sm tracking-wide">
+        <Tip label="UV index" text={UV_TIP}>UV index</Tip>
+      </h2>
+      <p className={`mt-1 font-display text-3xl ${band ? toneClass(band.tone) : ""}`}>{value ?? "—"}</p>
+      <p className="text-xs text-muted">{band ? band.effect : "Daylight hours only"}</p>
+      <p className="text-xs text-muted">{briefing?.uv ? `Hour ${formatStamp(briefing.uv.hour)}` : ""}</p>
     </section>
   );
 }
@@ -310,19 +327,36 @@ function DayCard({ briefing }: { briefing: Briefing | null }) {
   return (
     <section className="panel p-3">
       <h2 className="font-display text-sm tracking-wide">Next 24 hours</h2>
-      <p className="mt-1 text-lg font-display">{day?.summary ?? "—"}</p>
+      <p className={`mt-1 font-display text-lg leading-tight ${fxClass(day?.summary ?? "")}`}>{day?.summary ?? "—"}</p>
       <p className="text-xs text-muted">{day?.validText ?? "Waiting on the forecast feed"}</p>
-      <p className="mt-2 text-sm tabular-nums">
-        {day?.tempLow ?? "—"}–{day?.tempHigh ?? "—"}°C · RH {day?.rhLow ?? "—"}–{day?.rhHigh ?? "—"}% · {day?.windDir ?? "—"}{" "}
-        {day?.windLow ?? "—"}–{day?.windHigh ?? "—"} km/h
-      </p>
+      <div className="mt-2 grid grid-cols-3 gap-1">
+        <Tip label="Temperature" text={TEMP_TIP}>
+          <span className="stat-chip">{day?.tempLow ?? "—"}–{day?.tempHigh ?? "—"}°</span>
+        </Tip>
+        <Tip label="Humidity" text={HUM_TIP}>
+          <span className="stat-chip">RH {day?.rhLow ?? "—"}–{day?.rhHigh ?? "—"}%</span>
+        </Tip>
+        <Tip label="Wind" text={WIND_TIP}>
+          <span className="stat-chip">{day?.windDir ?? "—"} {day?.windLow ?? "—"}–{day?.windHigh ?? "—"}</span>
+        </Tip>
+      </div>
       <ul className="mt-3 space-y-2">
-        {(day?.periods ?? []).map((period) => (
-          <li key={period.text}>
-            <p className="text-xs text-muted">{period.text}</p>
-            <p className="text-sm">{period.regions.map((r) => `${title(r.id)} ${r.text}`).join(" · ")}</p>
-          </li>
-        ))}
+        {(day?.periods ?? []).map((period) => {
+          const tone = periodTone(period.regions);
+          return (
+            <li key={period.text} className={`period period-${tone}`}>
+              <p className="text-xs text-muted">{period.text}</p>
+              <ul className="mt-1 space-y-0.5">
+                {orderForecast(period.regions).map((region) => (
+                  <li key={region.id} className="flex items-baseline justify-between gap-3 text-sm">
+                    <span className="text-muted">{title(region.id)}</span>
+                    <span className={`text-right ${fxClass(region.text)}`}>{region.text}</span>
+                  </li>
+                ))}
+              </ul>
+            </li>
+          );
+        })}
       </ul>
     </section>
   );
@@ -387,4 +421,125 @@ function toneBg(tone: string) {
   if (tone === "very") return "bg-very";
   if (tone === "hazard") return "bg-hazard";
   return "bg-muted";
+}
+
+const PSI_TIP =
+  "24-hour Pollutant Standards Index, NEA's haze score. 0–50 good: be outside as usual. 51–100 moderate: fine for most people. 101–200 unhealthy: shorten outdoor exercise, especially for children, older adults, and anyone with asthma or heart disease. Above 200, stay indoors and keep windows shut.";
+const PM_TIP =
+  "PM2.5 is the amount of fine haze particles in one cubic metre of air, measured over the last hour. Under 55 is normal. 56–150 is elevated. Above 150, wear a mask outdoors and skip a long run. These particles travel deep into the lungs.";
+const PM25_SUB_TIP =
+  "24-hour PM2.5 sub-index, scored on the same 0–50 / 51–100 / 101–200 bands as PSI. This is the haze particle contribution to the main PSI number.";
+const PM10_TIP =
+  "Coarser dust, scored as a 24-hour sub-index like PSI. It irritates eyes, nose, and throat more than the deeper lungs. Above 100, the air feels gritty.";
+const O3_TIP =
+  "Ozone. It builds in strong afternoon sun and irritates airways. A high sub-index feels like a tight chest if you exercise outside. Same bands as PSI.";
+const NO2_TIP =
+  "Nitrogen dioxide, mostly from traffic. The figure is the highest 1-hour sub-index. It irritates airways. Above 100, busy roads are a poor place for a long walk.";
+const SO2_TIP =
+  "Sulphur dioxide, from industry and ships. A 24-hour sub-index. It can sting the throat and set off asthma. Above 100, limit time outdoors if you are sensitive.";
+const CO_TIP =
+  "Carbon monoxide from incomplete burning, as a sub-index rather than a raw gas reading. High values mean the air is poor for staying outside a long time.";
+const UV_TIP =
+  "Sunburn risk for this hour. 0–2 low: no extra protection. 3–5 moderate: sunscreen if you stay out. 6–7 high: hat, shade, and SPF from 11am to 4pm. 8–10 very high. 11 or more is extreme — keep midday time indoors.";
+const HUM_TIP =
+  "Relative humidity, averaged across stations. Singapore often sits above 70%. Over 80% feels heavy and sticky, and storms are more likely. It does not mean it is raining.";
+const WIND_TIP =
+  "The direction the wind is coming from, plus speed. Haze often arrives on a southwest or southeast wind. A fresher wind clears smoke through faster. Arrows on the map point where it is going.";
+const TEMP_TIP = "Air temperature averaged from stations reporting right now. One neighbourhood can sit a degree or two off this figure.";
+
+function psiEffect(value: number) {
+  const key = psiKey(value);
+  if (key === "good") return "go out as usual";
+  if (key === "moderate") return "fine for most people";
+  if (key === "unhealthy") return "cut long outdoor exercise";
+  if (key === "very") return "avoid outdoor activity";
+  return "stay indoors";
+}
+
+function pmEffect(value: number) {
+  if (value <= 55) return "normal";
+  if (value <= 150) return "elevated — ease off outdoor exercise";
+  if (value <= 250) return "high — mask up outdoors";
+  return "very high — stay indoors";
+}
+
+function regionTitle(region: Region) {
+  const psi = region.psi == null ? "no PSI yet" : `${Math.round(region.psi)}, ${psiLabel(region.psi)}. ${psiEffect(region.psi)}`;
+  const pm = region.pm25h == null ? "no PM2.5 yet" : `${Math.round(region.pm25h)} µg/m³, ${pmEffect(region.pm25h)}`;
+  return `${title(region.id)}. 24-hour PSI ${psi}. 1-hour PM2.5 ${pm}. Click to show this region on the map.`;
+}
+
+function uvBand(value: number) {
+  if (value <= 2) return { tone: "good", effect: "Low · no extra protection" };
+  if (value <= 5) return { tone: "moderate", effect: "Moderate · sunscreen if you stay out" };
+  if (value <= 7) return { tone: "unhealthy", effect: "High · shade from 11am to 4pm" };
+  if (value <= 10) return { tone: "very", effect: "Very high · cover up at midday" };
+  return { tone: "hazard", effect: "Extreme · stay out of the midday sun" };
+}
+
+function fxClass(text: string) {
+  const tone = forecastTone(text);
+  if (tone === "storm") return "fx-storm";
+  if (tone === "wet") return "fx-wet";
+  return "fx-calm";
+}
+
+function periodTone(regions: { text: string }[]) {
+  let tone: "calm" | "wet" | "storm" = "calm";
+  for (const region of regions) {
+    const next = forecastTone(region.text);
+    if (next === "storm") return "storm";
+    if (next === "wet") tone = "wet";
+  }
+  return tone;
+}
+
+function orderForecast<T extends { id: string }>(regions: T[]) {
+  const rank: Record<string, number> = { north: 0, south: 1, east: 2, west: 3, central: 4 };
+  return [...regions].sort((a, b) => (rank[a.id] ?? 9) - (rank[b.id] ?? 9));
+}
+
+function Tip({ label, text, children }: { label: string; text: string; children: ReactNode }) {
+  const ref = useRef<HTMLButtonElement>(null);
+  const [open, setOpen] = useState(false);
+  const [place, setPlace] = useState({ x: 12, y: 12, above: false });
+
+  function placeTip() {
+    const rect = ref.current?.getBoundingClientRect();
+    if (!rect) return;
+    const width = Math.min(288, window.innerWidth - 24);
+    const x = Math.max(12, Math.min(rect.left, window.innerWidth - width - 12));
+    const above = rect.bottom + 150 > window.innerHeight;
+    setPlace({ x, y: above ? rect.top - 8 : rect.bottom + 8, above });
+    setOpen(true);
+  }
+
+  return (
+    <span className="tip">
+      <button
+        ref={ref}
+        type="button"
+        className="tip-hit"
+        aria-label={`${label}. ${text}`}
+        aria-expanded={open}
+        onMouseEnter={placeTip}
+        onMouseLeave={() => setOpen(false)}
+        onFocus={placeTip}
+        onBlur={() => setOpen(false)}
+        onClick={(event) => {
+          event.stopPropagation();
+          if (open) setOpen(false);
+          else placeTip();
+        }}
+      >
+        {children}
+      </button>
+      {open ? (
+        <span role="tooltip" className="tip-pop" style={{ left: place.x, top: place.y, transform: place.above ? "translateY(-100%)" : undefined }}>
+          <span className="tip-label">{label}</span>
+          {text}
+        </span>
+      ) : null}
+    </span>
+  );
 }
