@@ -386,7 +386,8 @@ function RangeTile({
 }
 
 function WindTile({ wind }: { wind: { fromDeg: number; kmh: number } | null }) {
-  const toward = wind ? (wind.fromDeg + 180) % 360 : 0;
+  const point = wind ? ((Math.round(wind.fromDeg / 22.5) % 16) + 16) % 16 : 0;
+  const toward = (point * 22.5 + 180) % 360;
   return (
     <div className="panel kpi px-3 py-2">
       <p className="text-xs text-muted">
