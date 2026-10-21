@@ -251,16 +251,24 @@ export function CommandCenter() {
           <h2 className="font-display text-sm tracking-wide">Four-day outlook</h2>
         </div>
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-          {(briefing?.outlook ?? []).map((day) => (
-            <article key={day.date || day.day} className="panel p-3">
-              <p className="text-xs text-muted">{day.day}</p>
-              <p className="font-display text-base">{day.text || "—"}</p>
-              <p className="text-sm text-muted">{day.summary}</p>
-              <p className="mt-2 text-sm tabular-nums">
-                {day.tempLow ?? "—"}–{day.tempHigh ?? "—"}°C · {day.windDir ?? "—"} {day.windLow ?? "—"}–{day.windHigh ?? "—"} km/h
-              </p>
-            </article>
-          ))}
+          {(briefing?.outlook ?? []).map((day) => {
+            const look = fxClass(`${day.text ?? ""} ${day.summary ?? ""}`);
+            return (
+              <article key={day.date || day.day} className={`panel outlook-card edge-${look.slice(3)} p-3`}>
+                <p className="text-xs text-muted">{day.day}</p>
+                <p className={`font-display text-base ${look}`}>{day.text || "—"}</p>
+                <p className={`text-sm ${look}`}>{day.summary}</p>
+                <p className="mt-2 flex flex-wrap gap-x-2 text-sm tabular-nums">
+                  <span className="fig-temp">
+                    {day.tempLow ?? "—"}–{day.tempHigh ?? "—"}°C
+                  </span>
+                  <span className="fig-wind">
+                    {day.windDir ?? "—"} {day.windLow ?? "—"}–{day.windHigh ?? "—"} km/h
+                  </span>
+                </p>
+              </article>
+            );
+          })}
           {!briefing?.outlook.length && !loading ? <p className="text-sm text-muted">Outlook not in this pull.</p> : null}
         </div>
         <p className="mt-3 text-xs text-muted">

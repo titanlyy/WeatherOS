@@ -198,6 +198,16 @@
 
 .fig-temp { color: #f5c542; }
 .fig-rain { color: #3db7ff; }
+.fig-wind { color: var(--color-primary); }
+
+.outlook-card {
+  border-left-width: 3px;
+}
+
+.edge-storm { border-left-color: #ff4d8d; }
+.edge-rain { border-left-color: #3db7ff; }
+.edge-cloud { border-left-color: #8fd3ff; }
+.edge-fair { border-left-color: #f5c542; }
 
 [data-theme="cyber"] .area-tip .area-name,
 [data-theme="cyber"] .area-tip .area-wx,
@@ -212,7 +222,13 @@
 [data-theme="cyber"] .region-list .text-moderate,
 [data-theme="cyber"] .region-list .text-unhealthy,
 [data-theme="cyber"] .region-list .text-very,
-[data-theme="cyber"] .region-list .text-hazard {
+[data-theme="cyber"] .region-list .text-hazard,
+[data-theme="cyber"] .outlook .wx-storm,
+[data-theme="cyber"] .outlook .wx-rain,
+[data-theme="cyber"] .outlook .wx-cloud,
+[data-theme="cyber"] .outlook .wx-fair,
+[data-theme="cyber"] .outlook .fig-temp,
+[data-theme="cyber"] .outlook .fig-wind {
   text-shadow: 0 0 10px color-mix(in srgb, currentColor 55%, transparent);
 }
 
@@ -222,6 +238,10 @@
 [data-theme="solar"] .wx-fair,
 [data-theme="solar"] .fig-temp { color: #a07a12; }
 [data-theme="solar"] .fig-rain { color: #1a6fbf; }
+[data-theme="solar"] .edge-storm { border-left-color: #c45c26; }
+[data-theme="solar"] .edge-rain { border-left-color: #1a6fbf; }
+[data-theme="solar"] .edge-cloud { border-left-color: #3d6d86; }
+[data-theme="solar"] .edge-fair { border-left-color: #a07a12; }
 
 .leaflet-tooltip-top.area-tip::before {
   border-top-color: var(--color-line);
