@@ -100,7 +100,7 @@
   .mid {
     flex: 1;
     display: grid;
-    grid-template-columns: 18.5rem minmax(0, 1fr) 20rem;
+    grid-template-columns: clamp(17rem, 20vw, 22rem) minmax(0, 1fr) minmax(18rem, 22rem);
     min-height: 0;
   }
 
@@ -113,6 +113,35 @@
     min-height: 0;
     min-width: 0;
     overflow: auto;
+  }
+
+  .rail {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .rail-panel {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .region-list {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .region-list > li {
+    display: flex;
+    flex: 1 1 0;
+    min-height: 2.75rem;
+  }
+
+  .region-list > li > button {
+    flex: 1;
   }
 }
 

@@ -134,38 +134,39 @@ export function CommandCenter() {
       {error ? <p className="mx-4 mb-3 text-sm text-accent">{error}</p> : null}
 
       <div className="mid flex-1 px-3 pb-3 lg:px-4">
-        <aside className="side mb-3 min-w-0 lg:mb-0 lg:pr-3">
-          <section className="panel min-w-0 p-2.5">
+        <aside className="side rail mb-3 min-w-0 lg:mb-0 lg:pr-3">
+          <section className="panel rail-panel min-w-0 p-2.5">
             <h2 className="font-display text-sm tracking-wide">Regions</h2>
-            <div className="mt-1 grid grid-cols-[minmax(0,1fr)_auto_auto] gap-x-3 px-1.5 text-[10px] uppercase tracking-wide text-muted">
-              <span />
+            <div className="mt-1 grid grid-cols-2 gap-x-3 pl-4 text-[10px] uppercase tracking-wide text-muted">
               <Tip label="PSI" text={PSI_TIP}>
-                <span className="block text-left">24h PSI</span>
+                <span>24h PSI</span>
               </Tip>
               <Tip label="PM2.5" text={PM_TIP}>
-                <span className="block text-left">1h PM2.5</span>
+                <span>1h PM2.5</span>
               </Tip>
             </div>
-            <ul>
+            <ul className="region-list">
               {regions.map((region) => (
                 <li key={region.id} className="min-w-0 border-b border-line last:border-b-0">
                   <button
                     type="button"
-                    className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-3 px-1.5 py-1 text-left"
+                    className="flex w-full min-w-0 flex-col justify-center gap-0.5 px-1.5 py-1 text-left"
                     title={regionTitle(region)}
                     onClick={() => setFocus({ lon: region.lon, lat: region.lat, nonce: Date.now() })}
                   >
                     <span className="flex min-w-0 items-center gap-2">
                       <span className={`size-2 shrink-0 rounded-full ${dotClass(region)} ${(region.psi ?? 0) > 100 ? "pulse-dot" : ""}`} />
-                      <span className="truncate text-sm">{title(region.id)}</span>
+                      <span className="text-sm">{title(region.id)}</span>
                     </span>
-                    <span className="flex items-baseline justify-end gap-1">
-                      <span className="text-sm tabular-nums">{region.psi == null ? "—" : Math.round(region.psi)}</span>
-                      <span className="w-[4.6rem] text-left text-[10px] leading-none text-muted">{region.psi == null ? "" : psiLabel(region.psi)}</span>
-                    </span>
-                    <span className="flex items-baseline justify-end gap-1">
-                      <span className="text-sm tabular-nums">{region.pm25h == null ? "—" : Math.round(region.pm25h)}</span>
-                      <span className="w-14 whitespace-nowrap text-left text-[10px] leading-none text-muted">{region.pm25h == null ? "" : pmLabel(region.pm25h)}</span>
+                    <span className="grid grid-cols-2 gap-x-3 pl-4">
+                      <span className="truncate text-sm tabular-nums">
+                        {region.psi == null ? "—" : Math.round(region.psi)}{" "}
+                        <span className="text-[10px] text-muted">{region.psi == null ? "" : psiLabel(region.psi)}</span>
+                      </span>
+                      <span className="truncate text-sm tabular-nums">
+                        {region.pm25h == null ? "—" : Math.round(region.pm25h)}{" "}
+                        <span className="text-[10px] text-muted">{region.pm25h == null ? "" : pmLabel(region.pm25h)}</span>
+                      </span>
                     </span>
                   </button>
                 </li>
