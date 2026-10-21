@@ -109,14 +109,29 @@ export function CommandCenter() {
       </header>
 
       <div className="grid grid-cols-2 gap-2 px-3 py-3 sm:grid-cols-4 lg:px-4">
-        <Kpi label="Air" value={avgTemp == null ? "—" : `${round1(avgTemp)}°`} note="station mean" tip={TEMP_TIP} />
-        <Kpi label="Humidity" value={avgHum == null ? "—" : `${Math.round(avgHum)}%`} note="station mean" tip={HUM_TIP} />
-        <Kpi
-          label="Wind"
-          value={wind ? compass(wind.fromDeg) : "—"}
-          note={wind ? `${round1(wind.kmh)} km/h mean, blowing from` : "awaiting stations"}
-          tip={WIND_TIP}
+        <RangeTile
+          label="Air"
+          tip={TEMP_TIP}
+          value={avgTemp}
+          low={briefing?.day?.tempLow ?? (temps.length ? Math.min(...temps) : null)}
+          high={briefing?.day?.tempHigh ?? (temps.length ? Math.max(...temps) : null)}
+          format={(n) => `${round1(n)}°`}
+          ends={(n) => `${Math.round(n)}°`}
+          colorAt={(n) => comfortColor(TEMP_STOPS, n)}
+          note="station mean · today"
         />
+        <RangeTile
+          label="Humidity"
+          tip={HUM_TIP}
+          value={avgHum}
+          low={briefing?.day?.rhLow ?? (hums.length ? Math.min(...hums) : null)}
+          high={briefing?.day?.rhHigh ?? (hums.length ? Math.max(...hums) : null)}
+          format={(n) => `${Math.round(n)}%`}
+          ends={(n) => `${Math.round(n)}%`}
+          colorAt={(n) => comfortColor(HUM_STOPS, n)}
+          note="station mean · today"
+        />
+        <WindTile wind={wind} />
         <Kpi
           label="Worst PSI"
           value={worst?.psi == null ? "—" : String(Math.round(worst.psi))}
@@ -276,6 +291,111 @@ export function CommandCenter() {
           areas © Urban Redevelopment Authority, Master Plan 2019. Singapore Open Data Licence. Not an official NEA site.
         </p>
       </section>
+    </div>
+  );
+}
+
+const TEMP_STOPS: [number, [number, number, number]][] = [
+  [22, [110, 196, 196]],
+  [26, [72, 196, 168]],
+  [29, [214, 196, 96]],
+  [32, [242, 164, 74]],
+  [35, [232, 112, 58]],
+];
+
+const HUM_STOPS: [number, [number, number, number]][] = [
+  [45, [72, 196, 168]],
+  [60, [150, 206, 120]],
+  [75, [214, 186, 88]],
+  [88, [232, 154, 72]],
+  [100, [224, 122, 64]],
+];
+
+function comfortColor(stops: [number, [number, number, number]][], value: number) {
+  if (value <= stops[0][0]) return rgb(stops[0][1]);
+  for (let i = 1; i < stops.length; i++) {
+    const [hi, hc] = stops[i];
+    const [lo, lc] = stops[i - 1];
+    if (value <= hi) {
+      const t = (value - lo) / (hi - lo);
+      return rgb(lc.map((channel, index) => Math.round(channel + (hc[index] - channel) * t)) as [number, number, number]);
+    }
+  }
+  return rgb(stops[stops.length - 1][1]);
+}
+
+function rgb([r, g, b]: [number, number, number]) {
+  return `rgb(${r}, ${g}, ${b})`;
+}
+
+function RangeTile({
+  label,
+  tip,
+  value,
+  low,
+  high,
+  format,
+  ends,
+  colorAt,
+  note,
+}: {
+  label: string;
+  tip: string;
+  value: number | null;
+  low: number | null;
+  high: number | null;
+  format: (n: number) => string;
+  ends: (n: number) => string;
+  colorAt: (n: number) => string;
+  note: string;
+}) {
+  const color = value == null ? undefined : colorAt(value);
+  const span = low != null && high != null ? Math.max(high - low, 0.01) : null;
+  const mark = value != null && low != null && span != null ? Math.min(1, Math.max(0, (value - low) / span)) : null;
+  const bar =
+    low != null && high != null
+      ? `linear-gradient(90deg, ${colorAt(low)}, ${colorAt(low + (high - low) / 2)}, ${colorAt(high)})`
+      : undefined;
+  return (
+    <div className="panel kpi px-3 py-2">
+      <p className="text-xs text-muted">
+        <Tip label={label} text={tip}>{label}</Tip>
+      </p>
+      <p className="font-display text-3xl leading-none" style={color ? { color } : undefined}>
+        {value == null ? "—" : format(value)}
+      </p>
+      {bar && mark != null ? (
+        <div className="mt-2">
+          <div className="range-track" style={{ background: bar }}>
+            <span className="range-mark" style={{ left: `${mark * 100}%`, background: color, color }} />
+          </div>
+          <div className="mt-1 flex justify-between text-[10px] tabular-nums text-muted">
+            <span>{ends(low!)}</span>
+            <span>{ends(high!)}</span>
+          </div>
+        </div>
+      ) : (
+        <p className="mt-1 text-xs text-muted">{note}</p>
+      )}
+      {bar ? <p className="mt-0.5 text-[10px] text-muted">{note}</p> : null}
+    </div>
+  );
+}
+
+function WindTile({ wind }: { wind: { fromDeg: number; kmh: number } | null }) {
+  const toward = wind ? (wind.fromDeg + 180) % 360 : 0;
+  return (
+    <div className="panel kpi px-3 py-2">
+      <p className="text-xs text-muted">
+        <Tip label="Wind" text={WIND_TIP}>Wind</Tip>
+      </p>
+      <div className="mt-1 flex items-center gap-2">
+        <p className={`${wind ? "wind-flow" : ""} font-display text-3xl leading-none`} style={wind ? { ["--flow" as string]: `${toward}deg` } : undefined}>
+          {wind ? compass(wind.fromDeg) : "—"}
+        </p>
+        {wind ? <span className="wind-arrow" style={{ transform: `rotate(${toward}deg)` }} aria-hidden="true" /> : null}
+      </div>
+      <p className="mt-1 text-xs text-muted">{wind ? `${round1(wind.kmh)} km/h mean, blowing from` : "awaiting stations"}</p>
     </div>
   );
 }
