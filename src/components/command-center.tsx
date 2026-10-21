@@ -173,7 +173,7 @@ export function CommandCenter() {
               ))}
               {!regions.length ? <li className="px-1.5 py-2 text-sm text-muted">Region readings land with the first successful PSI pull.</li> : null}
             </ul>
-            {worst ? <Pollutants region={worst} /> : null}
+            {regions.length ? <SubIndices regions={regions} worstId={worst?.id ?? null} /> : null}
             <UvBlock briefing={briefing} />
           </section>
         </aside>
@@ -290,28 +290,45 @@ function Stat({ k, v }: { k: string; v: string }) {
   );
 }
 
-function Pollutants({ region }: { region: Region }) {
-  const rows = [
-    ["PM2.5", region.pm25, PM25_SUB_TIP],
-    ["PM10", region.pm10, PM10_TIP],
-    ["O₃", region.o3, O3_TIP],
-    ["NO₂", region.no2, NO2_TIP],
-    ["SO₂", region.so2, SO2_TIP],
-    ["CO", region.co, CO_TIP],
+function SubIndices({ regions, worstId }: { regions: Region[]; worstId: string | null }) {
+  const cols = [
+    ["PM2.5", "pm25", PM25_SUB_TIP],
+    ["PM10", "pm10", PM10_TIP],
+    ["O₃", "o3", O3_TIP],
+    ["NO₂", "no2", NO2_TIP],
+    ["SO₂", "so2", SO2_TIP],
+    ["CO", "co", CO_TIP],
   ] as const;
   return (
-    <div className="mt-1 border-t border-line pt-2">
-      <h2 className="font-display text-xs tracking-wide">Sub-indices · {title(region.id)}</h2>
-      <dl className="mt-1 grid grid-cols-3 gap-x-2 gap-y-0.5 text-xs">
-        {rows.map(([label, value, help]) => (
-          <div key={label} className="flex items-baseline justify-between gap-1">
-            <dt className="text-muted">
-              <Tip label={label} text={help}>{label}</Tip>
-            </dt>
-            <dd className={`tabular-nums ${value != null && value > 100 ? "text-unhealthy" : ""}`}>{value == null ? "—" : Math.round(value)}</dd>
+    <div className="sub-block mt-2 border-t border-line pt-2">
+      <h2 className="font-display text-xs tracking-wide">Sub-indices</h2>
+      <p className="text-[10px] leading-snug text-muted">All five regions. A region's PSI is the highest of these.</p>
+      <div className="mt-1.5 grid grid-cols-[3.4rem_repeat(6,minmax(0,1fr))] gap-x-1 text-[11px] text-muted">
+        <span />
+        {cols.map(([label, , help]) => (
+          <span key={label} className="text-center">
+            <Tip label={label} text={help}>{label}</Tip>
+          </span>
+        ))}
+      </div>
+      <div className="sub-rows">
+        {regions.map((region) => (
+          <div
+            key={region.id}
+            className={`grid grid-cols-[3.4rem_repeat(6,minmax(0,1fr))] items-baseline gap-x-1 rounded px-0.5 text-[11px] ${region.id === worstId ? "bg-bg" : ""}`}
+          >
+            <span className="truncate">{title(region.id)}</span>
+            {cols.map(([label, key]) => {
+              const value = region[key];
+              return (
+                <span key={label} className={`text-center tabular-nums ${value != null && value > 100 ? "text-unhealthy" : ""}`}>
+                  {value == null ? "—" : Math.round(value)}
+                </span>
+              );
+            })}
           </div>
         ))}
-      </dl>
+      </div>
     </div>
   );
 }

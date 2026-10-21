@@ -128,20 +128,21 @@
   }
 
   .region-list {
+    flex: 0 0 auto;
+  }
+
+  .sub-block {
     display: flex;
-    flex: 1 1 auto;
+    flex: 1;
     flex-direction: column;
     min-height: 0;
   }
 
-  .region-list > li {
+  .sub-rows {
     display: flex;
-    flex: 1 1 0;
-    min-height: 2.75rem;
-  }
-
-  .region-list > li > button {
     flex: 1;
+    flex-direction: column;
+    justify-content: space-evenly;
   }
 }
 
