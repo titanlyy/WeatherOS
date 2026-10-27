@@ -106,6 +106,14 @@
     0 0 16px color-mix(in srgb, var(--color-unhealthy) 45%, transparent);
 }
 
+.uv-block {
+  position: relative;
+  z-index: 2;
+  flex: none;
+  margin-top: auto;
+  background: var(--color-surface);
+}
+
 .nowcast-list {
   max-height: 18rem;
   overflow: auto;
@@ -145,6 +153,7 @@
     flex: 1;
     flex-direction: column;
     min-height: 0;
+    overflow: auto;
   }
 
   .region-list {
@@ -153,16 +162,15 @@
 
   .sub-block {
     display: flex;
-    flex: 1;
+    flex: none;
     flex-direction: column;
     min-height: 0;
   }
 
   .sub-rows {
     display: flex;
-    flex: 1;
+    flex: none;
     flex-direction: column;
-    justify-content: space-evenly;
   }
 
   .nowcast-col {

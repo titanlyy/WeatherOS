@@ -21,6 +21,8 @@ import {
 import { WireMap } from "@/components/wire-map";
 
 const REFRESH_MS = 90_000;
+const LOCAL_KEY = "weatheros-briefing";
+const LOCAL_MAX_MS = 6 * 60 * 60 * 1000;
 
 export function CommandCenter() {
   const [theme, setTheme] = useState<ThemeId>("cyber");
@@ -51,6 +53,20 @@ export function CommandCenter() {
   }, []);
 
   useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(LOCAL_KEY);
+      if (!raw) return;
+      const saved = JSON.parse(raw) as Briefing;
+      if (!saved?.fetchedAt || saved.failed || saved.partial) return;
+      if (Date.now() - Date.parse(saved.fetchedAt) > LOCAL_MAX_MS) return;
+      setBriefing((current) => current ?? saved);
+      setLoading(false);
+    } catch {
+      window.localStorage.removeItem(LOCAL_KEY);
+    }
+  }, []);
+
+  useEffect(() => {
     let stop = false;
     let timer = 0;
     const load = async () => {
@@ -59,6 +75,13 @@ export function CommandCenter() {
         if (stop) return;
         setBriefing(data);
         setError(data.failed ? "NEA feeds did not answer. Retrying." : null);
+        if (!data.failed && !data.partial) {
+          try {
+            window.localStorage.setItem(LOCAL_KEY, JSON.stringify(data));
+          } catch {
+            /* a full briefing is optional to keep */
+          }
+        }
         timer = window.setTimeout(() => void load(), data.partial || data.failed ? 4_000 : REFRESH_MS);
       } catch (err) {
         if (stop) return;
@@ -472,7 +495,7 @@ function UvBlock({ briefing }: { briefing: Briefing | null }) {
   const value = briefing?.uv?.value;
   const band = value == null ? null : uvBand(value);
   return (
-    <div className="mt-2 flex items-baseline gap-2 border-t border-line pt-2">
+    <div className="uv-block mt-2 flex items-baseline gap-2 border-t border-line pt-2">
       <Tip label="UV index" text={UV_TIP}>
         <span className="text-xs text-muted">UV</span>
       </Tip>

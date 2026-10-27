@@ -322,6 +322,33 @@ function assemble(feeds: Feeds): Briefing {
   };
 }
 
+const CACHE_FILE = "/tmp/weatheros-briefing.json";
+const CACHE_MAX_MS = 6 * 60 * 60 * 1000;
+
+function remember(at: number, data: Briefing) {
+  if (typeof window !== "undefined" || data.failed) return;
+  if (!data.regions.length && !data.stations.length) return;
+  void import("node:fs/promises")
+    .then(({ writeFile }) => writeFile(CACHE_FILE, JSON.stringify({ at, data })))
+    .catch((err) => {
+      console.error("briefing cache", err);
+    });
+}
+
+async function readRemembered(): Promise<{ at: number; data: Briefing } | null> {
+  if (typeof window !== "undefined") return null;
+  try {
+    const { readFile } = await import("node:fs/promises");
+    const saved = JSON.parse(await readFile(CACHE_FILE, "utf8")) as { at?: number; data?: Briefing };
+    if (!saved.at || !saved.data || saved.data.failed) return null;
+    if (Date.now() - saved.at > CACHE_MAX_MS) return null;
+    if (!saved.data.regions?.length && !saved.data.stations?.length) return null;
+    return { at: saved.at, data: saved.data };
+  } catch {
+    return null;
+  }
+}
+
 async function fillRest() {
   if (restFlight) return restFlight;
   if (cache && !cache.partial && Date.now() - cache.at < TTL_MS) return;
@@ -335,7 +362,10 @@ async function fillRest() {
     const data = assemble(feeds);
     filledAt = Date.now();
     waveAt = filledAt;
-    if (!data.failed) cache = { at: filledAt, partial: data.partial, data, feeds };
+    if (!data.failed) {
+      cache = { at: filledAt, partial: data.partial, data, feeds };
+      remember(filledAt, data);
+    }
   })().finally(() => {
     restFlight = null;
   });
@@ -349,7 +379,10 @@ async function loadFast(): Promise<Briefing> {
     await wave(FAST, feeds, false);
     waveAt = Date.now();
     const data = assemble(feeds);
-    if (!data.failed) cache = { at: Date.now(), partial: data.partial, data, feeds };
+    if (!data.failed) {
+      cache = { at: Date.now(), partial: data.partial, data, feeds };
+      remember(Date.now(), data);
+    }
     void fillRest();
     return data;
   })().finally(() => {
@@ -361,10 +394,20 @@ async function loadFast(): Promise<Briefing> {
 export const getBriefing = createServerFn({ method: "GET" }).handler(async () => {
   if (cache && !cache.partial && Date.now() - cache.at < TTL_MS) return cache.data;
   if (cache && (cache.data.stations.length > 0 || cache.data.regions.length > 0)) {
-    void fillRest();
+    const stale = cache.partial || Date.now() - cache.at >= TTL_MS || Object.keys(cache.feeds).length === 0;
+    if (stale) void loadFast();
+    else void fillRest();
     return cache.data;
   }
   return loadFast();
 });
 
-if (typeof window === "undefined") void loadFast();
+if (typeof window === "undefined") {
+  void readRemembered()
+    .then((saved) => {
+      if (saved && !cache) cache = { at: saved.at, partial: saved.data.partial, data: saved.data, feeds: {} };
+    })
+    .finally(() => {
+      if (!cache || cache.partial || Date.now() - cache.at >= TTL_MS) void loadFast();
+    });
+}
